@@ -1,13 +1,13 @@
 import json
+
 from openai import OpenAI
+
 from config import OPENAI_API_KEY
 from src.agent.state import AgentState
-from src.vectorstore.pinecone_store import upsert_chunks, query, check_ticker_exists
-from src.embeddings.embedder import embed_chunks
-from src.ingestion.sec_loader import ingest_sec_filing
+from src.tools.market_data import get_stock_data
+from src.tools.sec_retrieval import retrieve, fetch_embed_store_retrieve
+from src.vectorstore.pinecone_store import check_ticker_exists
 
-import yfinance as yf
-import ta
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -122,77 +122,20 @@ def check_pinecone(state: AgentState) -> dict:
 # Node 4A: Retrieve Chunks from Pinecone
 # ─────────────────────────────────────────────
 def retrieve_chunks(state: AgentState) -> dict:
-    """
-    Retrieves relevant chunks from Pinecone using the user's question.
-    """
-
-    question = state["question"]
-    ticker   = state["ticker"]
-
-    # Embed the question
-    embedded = embed_chunks([{"text": question, "metadata": {}}])
-    question_vector = embedded[0]["embedding"]
-
-    # Query Pinecone filtered by ticker
-    matches = query(question_vector, ticker=ticker, top_k=5)
-
-    chunks = [
-        {
-            "text":  m.metadata.get("text", ""),
-            "score": m.score,
-            "source": m.metadata.get("source", ""),
-        }
-        for m in matches
-    ]
-
-    print(f"  [Node 4A] Retrieved {len(chunks)} chunks for {ticker}")
+    """Retrieves relevant chunks from Pinecone."""
+    chunks = retrieve(state["question"], state["ticker"])
+    print(f"  [Node 4A] Retrieved {len(chunks)} chunks for {state['ticker']}")
     return {"chunks": chunks}
-
-
 
 
 # ─────────────────────────────────────────────
 # Node 4B: Fetch from SEC, Embed, Store, Retrieve
 # ─────────────────────────────────────────────
 def fetch_and_retrieve(state: AgentState) -> dict:
-    """
-    Dynamically fetches SEC filing for a ticker not in Pinecone.
-    Downloads, embeds, stores, then retrieves relevant chunks.
-    """
-
-    ticker   = state["ticker"]
-    question = state["question"]
-
-    print(f"  [Node 4B] {ticker} not in Pinecone — fetching from SEC...")
-
-    # Step 1: Download and chunk SEC filing
-    chunks = ingest_sec_filing(ticker)
-    print(f"  [Node 4B] Downloaded {len(chunks)} chunks for {ticker}")
-
-    # Step 2: Embed chunks
-    embedded_chunks = embed_chunks(chunks)
-    print(f"  [Node 4B] Embedded {len(embedded_chunks)} chunks")
-
-    # Step 3: Store in Pinecone
-    upsert_chunks(embedded_chunks)
-    print(f"  [Node 4B] Stored in Pinecone")
-
-    # Step 4: Retrieve relevant chunks
-    embedded_question = embed_chunks([{"text": question, "metadata": {}}])
-    question_vector = embedded_question[0]["embedding"]
-    matches = query(question_vector, ticker=ticker, top_k=5)
-
-    retrieved_chunks = [
-        {
-            "text":   m.metadata.get("text", ""),
-            "score":  m.score,
-            "source": m.metadata.get("source", ""),
-        }
-        for m in matches
-    ]
-
-    print(f"  [Node 4B] Retrieved {len(retrieved_chunks)} chunks for {ticker}")
-    return {"chunks": retrieved_chunks}
+    """Dynamically fetches SEC filing, embeds, stores, then retrieves."""
+    chunks = fetch_embed_store_retrieve(state["question"], state["ticker"])
+    print(f"  [Node 4B] Retrieved {len(chunks)} chunks for {state['ticker']}")
+    return {"chunks": chunks}
 
 
 
@@ -203,52 +146,13 @@ def fetch_and_retrieve(state: AgentState) -> dict:
 # ─────────────────────────────────────────────
 def get_market_data(state: AgentState) -> dict:
     """
-    Fetches market data for the ticker using yfinance.
-    Returns price, P/E, market cap, revenue, and technical indicators.
+    Fetches market data using the market_data tool.
     """
-
     ticker = state["ticker"]
 
     if not ticker:
         return {"market_data": None}
 
-    try:
-        stock = yf.Ticker(ticker)
-        info  = stock.info
-
-        # Basic fundamentals
-        market_data = {
-            "ticker":        ticker,
-            "company_name":  info.get("longName", ticker),
-            "current_price": info.get("currentPrice"),
-            "market_cap":    info.get("marketCap"),
-            "pe_ratio":      info.get("trailingPE"),
-            "forward_pe":    info.get("forwardPE"),
-            "revenue":       info.get("totalRevenue"),
-            "profit_margin": info.get("profitMargins"),
-            "52w_high":      info.get("fiftyTwoWeekHigh"),
-            "52w_low":       info.get("fiftyTwoWeekLow"),
-            "sector":        info.get("sector"),
-            "industry":      info.get("industry"),
-        }
-
-        # Technical indicators from last 6 months of price data
-        hist = stock.history(period="6mo")
-        if not hist.empty:
-            hist["rsi"]  = ta.momentum.RSIIndicator(hist["Close"]).rsi()
-            macd         = ta.trend.MACD(hist["Close"])
-            hist["macd"] = macd.macd()
-            hist["macd_signal"] = macd.macd_signal()
-
-            market_data["rsi"]         = round(hist["rsi"].iloc[-1], 2)
-            market_data["macd"]        = round(hist["macd"].iloc[-1], 4)
-            market_data["macd_signal"] = round(hist["macd_signal"].iloc[-1], 4)
-            market_data["sma_50"]      = round(hist["Close"].rolling(50).mean().iloc[-1], 2)
-            market_data["sma_200"]     = round(hist["Close"].rolling(200).mean().iloc[-1], 2) if len(hist) >= 200 else None
-
-        print(f"  [Node 5] Market data fetched for {ticker}: price={market_data['current_price']}, RSI={market_data.get('rsi')}")
-        return {"market_data": market_data}
-
-    except Exception as e:
-        print(f"  [Node 5] Error fetching market data for {ticker}: {e}")
-        return {"market_data": None}
+    market_data = get_stock_data(ticker)
+    print(f"  [Node 5] Market data fetched for {ticker}: price={market_data.get('current_price') if market_data else None}")
+    return {"market_data": market_data}
