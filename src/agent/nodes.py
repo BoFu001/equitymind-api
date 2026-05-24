@@ -7,7 +7,7 @@ from src.agent.state import AgentState
 from src.tools.market_data import get_stock_data
 from src.tools.sec_retrieval import retrieve, fetch_embed_store_retrieve
 from src.vectorstore.pinecone_store import check_ticker_exists
-
+from src.tools.news_sentiment import get_news_and_sentiment
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -156,3 +156,28 @@ def get_market_data(state: AgentState) -> dict:
     market_data = get_stock_data(ticker)
     print(f"  [Node 5] Market data fetched for {ticker}: price={market_data.get('current_price') if market_data else None}")
     return {"market_data": market_data}
+
+
+
+
+
+
+# ─────────────────────────────────────────────
+# Node 6: Get News and Sentiment
+# ─────────────────────────────────────────────
+def get_news(state: AgentState) -> dict:
+    """
+    Fetches recent news and sentiment for the ticker using FinBERT. 
+
+    NOTE: Currently using Finlight free tier (Launchpad plan).
+    Free tier has 12-hour news delay and no real-time access.
+    
+    """
+    ticker = state["ticker"]
+
+    if not ticker:
+        return {"news": []}
+
+    news = get_news_and_sentiment(ticker)
+    print(f"  [Node 6] {len(news)} articles fetched for {ticker}")
+    return {"news": news}
