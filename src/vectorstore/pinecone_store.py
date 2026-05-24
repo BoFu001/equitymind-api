@@ -63,6 +63,18 @@ def query(question_embedding: list[float], ticker: str = None, section: str = No
     return results.matches
 
 
+def check_ticker_exists(ticker: str) -> bool:
+    """Check if any records exist for this ticker in Pinecone."""
+    results = index.query(
+        vector=[0.0] * 1536,
+        top_k=1,
+        include_metadata=False,
+        filter={"ticker": ticker},
+        namespace=NAMESPACE,
+    )
+    return len(results.matches) > 0
+
+
 if __name__ == "__main__":
     from src.ingestion.sec_loader import ingest_sec_filing, TICKERS
     from src.embeddings.embedder import embed_chunks
