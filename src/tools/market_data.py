@@ -25,6 +25,17 @@ def get_stock_data(ticker: str) -> dict | None:
             "52w_low":       info.get("fiftyTwoWeekLow"),
             "sector":        info.get("sector"),
             "industry":      info.get("industry"),
+            # Earnings and dividends
+            "eps_trailing":  info.get("trailingEps"),
+            "eps_forward":   info.get("forwardEps"),
+            "dividend_yield": info.get("dividendYield"),
+            "dividend_rate": info.get("dividendRate"),
+            "payout_ratio":  info.get("payoutRatio"),
+            # Analyst targets
+            "target_high":   info.get("targetHighPrice"),
+            "target_low":    info.get("targetLowPrice"),
+            "target_mean":   info.get("targetMeanPrice"),
+            "recommendation": info.get("recommendationKey"),
         }
 
         # Technical indicators from last 6 months of price data

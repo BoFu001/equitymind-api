@@ -1,13 +1,14 @@
 import json
+from datetime import datetime
 
 from openai import OpenAI
 
-from config import OPENAI_API_KEY
+from config import OPENAI_API_KEY, APP_NAME
 from src.agent.state import AgentState
 from src.tools.market_data import get_stock_data
+from src.tools.news_sentiment import get_news_and_sentiment
 from src.tools.sec_retrieval import retrieve, fetch_embed_store_retrieve
 from src.vectorstore.pinecone_store import check_ticker_exists
-from src.tools.news_sentiment import get_news_and_sentiment
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -23,7 +24,7 @@ def classify_intent(state: AgentState) -> dict:
     """
     question = state["question"]
 
-    prompt = f"""You are EquityMind's intent classifier.
+    prompt = f"""You are {APP_NAME}'s intent classifier.
 Classify the user question into exactly one of these categories:
 
 - SPECIFIC_STOCK: user asks about one specific company (e.g. "What are Apple's risks?", "Analyse NVIDIA")
@@ -31,7 +32,7 @@ Classify the user question into exactly one of these categories:
 - PORTFOLIO: user wants general investment recommendations (e.g. "Find me a low risk stock")
 - ANALYZE_POSITION: user asks about their own holding in one stock (e.g. "I bought AAPL at $165, should I sell?", "I have 200 Apple shares, what should I do?")
 - ANALYZE_PORTFOLIO: user wants to analyse their full portfolio of multiple stocks (e.g. "Review my portfolio: AAPL 200 shares, NVDA 50 shares")
-- GREETING: user is saying hello or asking what EquityMind can do (e.g. "Hi", "What can you do?")
+- GREETING: user is saying hello or asking what {APP_NAME} can do (e.g. "Hi", "What can you do?")
 - OUT_OF_SCOPE: question is not related to stock investing at all (e.g. "I want to be rich", "What's the weather?")
 
 User question: {question}
@@ -171,7 +172,7 @@ def get_news(state: AgentState) -> dict:
 
     NOTE: Currently using Finlight free tier (Launchpad plan).
     Free tier has 12-hour news delay and no real-time access.
-    
+
     """
     ticker = state["ticker"]
 
@@ -181,3 +182,244 @@ def get_news(state: AgentState) -> dict:
     news = get_news_and_sentiment(ticker)
     print(f"  [Node 6] {len(news)} articles fetched for {ticker}")
     return {"news": news}
+
+
+
+
+# ─────────────────────────────────────────────
+# Node 7: Generate Report
+# ─────────────────────────────────────────────
+def generate_report(state: AgentState) -> dict:
+    """
+    Combines all data and generates a structured investment report.
+    Uses GPT-4o with full context: SEC chunks, market data, news.
+    Implements XAI by including evidence and sources.
+    """
+    question    = state["question"]
+    ticker      = state["ticker"]
+    chunks      = state.get("chunks") or []
+    market_data = state.get("market_data") or {}
+    news        = state.get("news") or []
+    messages    = state.get("messages") or []
+
+    # ── Format SEC chunks for prompt ──
+    sec_context = ""
+    for i, chunk in enumerate(chunks):
+        sec_context += f"\n[SEC Source {i+1}: {chunk.get('source','')} | Score: {chunk.get('score',0):.2f}]\n"
+        sec_context += chunk.get("text", "") + "\n"
+
+    # ── Format market data for prompt ──
+    md = market_data
+    market_context = f"""
+Company: {md.get('company_name', ticker)}
+Price: ${md.get('current_price')} | Market Cap: {md.get('market_cap')}
+P/E: {md.get('pe_ratio')} | Forward P/E: {md.get('forward_pe')}
+Revenue: {md.get('revenue')} | Profit Margin: {md.get('profit_margin')}
+EPS (trailing): {md.get('eps_trailing')} | EPS (forward): {md.get('eps_forward')}
+52w High: {md.get('52w_high')} | 52w Low: {md.get('52w_low')}
+Dividend Yield: {md.get('dividend_yield')} | Dividend Rate: {md.get('dividend_rate')}
+Analyst Target High: {md.get('target_high')} | Low: {md.get('target_low')} | Mean: {md.get('target_mean')}
+Analyst Recommendation: {md.get('recommendation')}
+RSI: {md.get('rsi')} | MACD: {md.get('macd')} | Signal: {md.get('macd_signal')}
+SMA50: {md.get('sma_50')} | SMA200: {md.get('sma_200')}
+Sector: {md.get('sector')} | Industry: {md.get('industry')}
+"""
+
+    # ── Format news for prompt ──
+    news_context = ""
+    for i, article in enumerate(news):
+        news_context += f"\n[News {i+1}] {article.get('sentiment','').upper()} ({article.get('score',0):.2f})\n"
+        news_context += f"Title: {article.get('title','')}\n"
+        news_context += f"Summary: {article.get('summary','')}\n"
+        news_context += f"URL: {article.get('url','')}\n"
+        news_context += f"Published: {article.get('published','')}\n"
+
+    # ── Format chat history ──
+    history_context = ""
+    for msg in messages[-6:]:  # last 3 exchanges
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        history_context += f"{role.upper()}: {content}\n"
+
+    # ── Build prompt ──
+    prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
+Generate a comprehensive, well-structured investment report in markdown format.
+
+IMPORTANT RULES:
+1. Put the recommendation FIRST — users want the answer before the details.
+2. Include ALL evidence and sources for XAI (explainable AI) transparency.
+3. Include clickable news URLs so users can verify information.
+4. Be specific with numbers — never vague.
+5. Always include the disclaimer at the end.
+6. Use markdown formatting with emojis for visual clarity.
+
+USER QUESTION: {question}
+TICKER: {ticker}
+DATE: {datetime.now().strftime('%B %d, %Y')}
+
+CONVERSATION HISTORY:
+{history_context}
+
+MARKET DATA:
+{market_context}
+
+SEC FILING DATA (from {ticker} 10-K annual report):
+{sec_context}
+
+NEWS & SENTIMENT (last 30 days):
+{news_context}
+
+Generate the report in this EXACT structure:
+
+# 📊 [Company Name] ([TICKER]) — Investment Analysis
+*Generated by {APP_NAME} · [date]*
+
+---
+
+## 💡 AI Recommendation: [BUY/HOLD/SELL]
+**Target Price:** $[mean analyst target] | **Current:** $[price] | **Upside:** [%]
+**Confidence:** [High/Medium/Low] | **Time Horizon:** [Short/Medium/Long term]
+
+> [2-3 sentence summary of why this recommendation]
+
+---
+
+## 📊 Quick Summary
+- [Key fact 1]
+- [Key fact 2]
+- [Key fact 3]
+- [Key fact 4]
+
+---
+
+## 💰 Valuation & Fundamentals
+| Metric | Value | Signal |
+|--------|-------|--------|
+| P/E Ratio | [value] | [Cheap/Fair/Expensive] |
+| Forward P/E | [value] | [signal] |
+| Revenue | [value] | [signal] |
+| Profit Margin | [value] | [signal] |
+| EPS (TTM) | [value] | |
+| Dividend Yield | [value] | |
+
+---
+
+## 📈 Technical Analysis
+| Indicator | Value | Signal |
+|-----------|-------|--------|
+| RSI (14) | [value] | [Oversold/Neutral/Overbought] |
+| MACD | [value] | [Bullish/Bearish] |
+| SMA 50 | [value] | [Above/Below price] |
+| SMA 200 | [value] | [Above/Below price] |
+| 52w Range | [low] - [high] | [position] |
+
+---
+
+## 📰 News & Sentiment (Last 30 Days)
+**Overall Sentiment:** [BULLISH/NEUTRAL/BEARISH] | **Avg Score:** [x.xx]
+
+[For each article:]
+[emoji] [[title]]([url]) — [sentiment] ([score]) — [date]
+
+---
+
+## ⚠️ Key Risks (from SEC 10-K Filing)
+[Extract top 3-5 key risks from the SEC chunks provided]
+
+---
+
+## 📎 Evidence & Sources (XAI)
+**This recommendation is based on:**
+- **Fundamentals:** [key metrics used]
+- **Technicals:** [indicators used]
+- **News sentiment:** [x positive, y negative, z neutral articles]
+- **SEC Filing:** [sources cited with scores]
+
+---
+
+## ⚠️ Disclaimer
+*This report is generated by AI for educational and research purposes only. It does not constitute financial advice. Always consult a qualified financial advisor before making investment decisions. Past performance does not guarantee future results.*
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    answer = response.choices[0].message.content.strip()
+
+    # Update conversation history
+    updated_messages = messages + [
+        {"role": "user",      "content": question},
+        {"role": "assistant", "content": answer},
+    ]
+
+    print(f"  [Node 7] Report generated for {ticker} ({len(answer)} chars)")
+    return {"answer": answer, "messages": updated_messages}
+
+
+
+
+
+# ─────────────────────────────────────────────
+# Node 8: Handle Out of Scope
+# ─────────────────────────────────────────────
+def handle_out_of_scope(state: AgentState) -> dict:
+    """
+    Returns a polite refusal for out-of-scope questions.
+    """
+    messages = state.get("messages") or []
+    question = state["question"]
+
+    answer = f"""I'm {APP_NAME}, an AI investment research assistant. I specialise in stock analysis, company research, and investment insights.
+
+I can help you with:
+- 📊 Analysing a specific stock (e.g. "Analyse Apple")
+- ⚖️ Comparing companies (e.g. "Compare NVIDIA and Microsoft")
+- 🔍 Finding investment opportunities (e.g. "Find low risk stocks")
+- 📰 News and sentiment analysis
+- ⚠️ Risk analysis from SEC filings
+
+What stock would you like me to research?"""
+
+    updated_messages = messages + [
+        {"role": "user",      "content": question},
+        {"role": "assistant", "content": answer},
+    ]
+
+    return {"answer": answer, "messages": updated_messages}
+
+
+# ─────────────────────────────────────────────
+# Node 9: Handle Greeting
+# ─────────────────────────────────────────────
+def handle_greeting(state: AgentState) -> dict:
+    """
+    Returns a friendly greeting and explains what this app can do.
+    """
+    messages = state.get("messages") or []
+    question = state["question"]
+
+    answer = f"""👋 Hello! I'm {APP_NAME}, your AI-powered investment research assistant.
+
+I analyse stocks using:
+- 📄 **SEC 10-K filings** — official annual reports
+- 📈 **Market data** — price, P/E, RSI, MACD, moving averages
+- 📰 **News sentiment** — FinBERT AI analysis of recent news
+- 💡 **AI recommendations** — BUY/HOLD/SELL with full evidence
+
+**Try asking me:**
+- "Analyse Apple"
+- "What are NVIDIA's biggest risks?"
+- "Compare Microsoft and Google"
+- "Find me a low risk stock in healthcare"
+
+What would you like to research today?"""
+
+    updated_messages = messages + [
+        {"role": "user",      "content": question},
+        {"role": "assistant", "content": answer},
+    ]
+
+    return {"answer": answer, "messages": updated_messages}
