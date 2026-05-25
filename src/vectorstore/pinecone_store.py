@@ -65,14 +65,16 @@ def query(question_embedding: list[float], ticker: str = None, section: str = No
 
 def check_ticker_exists(ticker: str) -> bool:
     """Check if any records exist for this ticker in Pinecone."""
-    results = index.query(
-        vector=[0.0] * 1536,
-        top_k=1,
-        include_metadata=False,
-        filter={"ticker": ticker},
-        namespace=NAMESPACE,
-    )
-    return len(results.matches) > 0
+    try:
+        response = index.fetch_by_metadata(
+            filter={"ticker": ticker},
+            namespace=NAMESPACE,
+            limit=1,
+        )
+        return len(response.vectors) > 0
+    except Exception as e:
+        print(f"  [pinecone] Error checking ticker {ticker}: {e}")
+        return False
 
 
 if __name__ == "__main__":

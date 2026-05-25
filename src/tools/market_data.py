@@ -39,7 +39,7 @@ def get_stock_data(ticker: str) -> dict | None:
         }
 
         # Technical indicators from last 6 months of price data
-        hist = stock.history(period="6mo")
+        hist = stock.history(period="1y")
         if not hist.empty:
             hist["rsi"]         = ta.momentum.RSIIndicator(hist["Close"]).rsi()
             macd                = ta.trend.MACD(hist["Close"])

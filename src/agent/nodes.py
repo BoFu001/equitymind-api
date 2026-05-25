@@ -53,31 +53,30 @@ Reply with ONLY the category name. Nothing else."""
 
 
 
-
 # ─────────────────────────────────────────────
 # Node 2: Extract Parameters
 # ─────────────────────────────────────────────
 def extract_parameters(state: AgentState) -> dict:
     """
-    Extracts ticker and year from the user's question.
-    Uses GPT-4o to return a JSON with ticker and year.
+    Extracts ticker(s) and year from the user's question.
+    Returns primary ticker, list of all tickers, and year.
     """
     question = state["question"]
 
     prompt = f"""You are a financial data extractor.
-Extract the stock ticker and year from the user question.
+Extract the stock ticker(s) and year from the user question.
 
 Rules:
-- ticker: the stock symbol in uppercase (e.g. AAPL, MSFT, NVDA). If not mentioned, return null.
-- year: the year mentioned (e.g. 2024, 2025). If not mentioned, return null (means use latest).
-- If the user mentions a company name, convert it to the correct ticker (e.g. Apple → AAPL, Microsoft → MSFT, Tesla → TSLA).
+- tickers: list of ALL stock symbols mentioned in uppercase. If none, return [].
+- year: the year mentioned. If not mentioned, return null.
+- Convert company names to tickers (e.g. Apple → AAPL, Microsoft → MSFT, Tesla → TSLA, NVIDIA → NVDA, Google → GOOGL, AMD → AMD).
 
 User question: {question}
 
-Reply with ONLY valid JSON. Example:
-{{"ticker": "AAPL", "year": null}}
-{{"ticker": "MSFT", "year": "2024"}}
-{{"ticker": null, "year": null}}"""
+Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example:
+{{"tickers": ["AAPL"], "year": null}}
+{{"tickers": ["AAPL", "MSFT"], "year": null}}
+{{"tickers": [], "year": null}}"""
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -86,14 +85,23 @@ Reply with ONLY valid JSON. Example:
     )
 
     content = response.choices[0].message.content.strip()
-    data = json.loads(content)
 
-    ticker = data.get("ticker")
-    year   = data.get("year")
+    if not content:
+        print(f"  [Node 2] Empty response from GPT-4o, using defaults")
+        return {"ticker": None, "tickers": [], "year": None}
 
-    print(f"  [Node 2] Ticker: {ticker}, Year: {year}")
-    return {"ticker": ticker, "year": year}
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        print(f"  [Node 2] Invalid JSON: {content}")
+        return {"ticker": None, "tickers": [], "year": None}
 
+    tickers = data.get("tickers", [])
+    ticker  = tickers[0] if tickers else None
+    year    = str(data.get("year")) if data.get("year") else None
+
+    print(f"  [Node 2] Ticker: {ticker}, Tickers: {tickers}, Year: {year}")
+    return {"ticker": ticker, "tickers": tickers, "year": year}
 
 
 
@@ -422,4 +430,181 @@ What would you like to research today?"""
         {"role": "assistant", "content": answer},
     ]
 
+    return {"answer": answer, "messages": updated_messages}
+
+
+
+
+
+# ─────────────────────────────────────────────
+# Node 10: Handle Portfolio Recommendation
+# ─────────────────────────────────────────────
+def handle_portfolio(state: AgentState) -> dict:
+    """
+    Handles general portfolio/investment recommendation requests.
+    No specific ticker — uses GPT-4o to recommend from our 14 companies.
+    """
+    question = state["question"]
+    messages = state.get("messages") or []
+
+    prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
+The user is asking for general investment recommendations.
+
+USER QUESTION: {question}
+
+Our coverage universe includes these 14 companies:
+Technology: AAPL, MSFT, NVDA
+Automotive/EV: TSLA
+Financial: JPM, BAC
+Healthcare: JNJ, PFE
+Energy: XOM
+Consumer: WMT
+Industrial: BRK-B, GE, BA, CAT
+
+Based on the user's request, recommend 2-3 suitable companies from our coverage universe.
+Explain why each fits their criteria.
+Tell them they can ask for a detailed analysis of any specific company.
+
+Use markdown format with emojis. Be concise but helpful.
+
+End with:
+⚠️ *This is AI-generated for educational purposes only. Not financial advice.*"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    answer = response.choices[0].message.content.strip()
+    updated_messages = messages + [
+        {"role": "user",      "content": question},
+        {"role": "assistant", "content": answer},
+    ]
+
+    print(f"  [Node Portfolio] Portfolio recommendation generated")
+    return {"answer": answer, "messages": updated_messages}
+
+
+# ─────────────────────────────────────────────
+# Node 11: Handle Comparison
+# ─────────────────────────────────────────────
+def handle_comparison(state: AgentState) -> dict:
+    """
+    Handles comparison questions between two or more companies.
+    Retrieves market data and SEC chunks for each ticker.
+    """
+    question = state["question"]
+    tickers  = state.get("tickers") or []
+    messages = state.get("messages") or []
+
+    if not tickers:
+        return handle_out_of_scope(state)
+
+    # Collect market data for each ticker
+    all_market_data = {}
+    for t in tickers:
+        data = get_stock_data(t)
+        if data:
+            all_market_data[t] = data
+
+    # Collect SEC chunks for each ticker
+    all_chunks = {}
+    for t in tickers:
+        if check_ticker_exists(t):
+            chunks = retrieve(question, t, top_k=3)
+        else:
+            chunks = fetch_embed_store_retrieve(question, t, top_k=3)
+        all_chunks[t] = chunks
+
+    # Format market data for prompt
+    market_context = ""
+    for t, md in all_market_data.items():
+        market_context += f"\n{t}:\n"
+        market_context += f"  Company: {md.get('company_name')}\n"
+        market_context += f"  Price: ${md.get('current_price')} | P/E: {md.get('pe_ratio')} | Forward P/E: {md.get('forward_pe')}\n"
+        market_context += f"  Revenue: {md.get('revenue')} | Profit Margin: {md.get('profit_margin')}\n"
+        market_context += f"  RSI: {md.get('rsi')} | MACD: {md.get('macd')}\n"
+        market_context += f"  Analyst Target Mean: ${md.get('target_mean')} | Recommendation: {md.get('recommendation')}\n"
+        market_context += f"  EPS: {md.get('eps_trailing')} | Dividend Yield: {md.get('dividend_yield')}\n"
+
+    # Format SEC chunks for prompt
+    sec_context = ""
+    for t, chunks in all_chunks.items():
+        sec_context += f"\n{t} SEC Filing:\n"
+        for chunk in chunks:
+            sec_context += chunk.get("text", "")[:300] + "\n"
+
+    prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
+Generate a detailed comparison report between these companies.
+
+USER QUESTION: {question}
+COMPANIES: {', '.join(tickers)}
+DATE: {datetime.now().strftime('%B %d, %Y')}
+
+MARKET DATA:
+{market_context}
+
+SEC FILING EXCERPTS:
+{sec_context}
+
+Generate a structured comparison report in markdown format:
+
+# ⚖️ {' vs '.join(tickers)} — Comparison Analysis
+*Generated by {APP_NAME} · {datetime.now().strftime('%B %d, %Y')}*
+
+---
+
+## 💡 Verdict
+[Which company wins for the user's specific criteria and why — be direct]
+
+---
+
+## 📊 Side-by-Side Comparison
+| Metric | {' | '.join(tickers)} |
+|--------|{'|'.join(['--------' for _ in tickers])}|
+| Price | [values] |
+| P/E Ratio | [values] |
+| Forward P/E | [values] |
+| Revenue | [values] |
+| Profit Margin | [values] |
+| RSI | [values] |
+| Analyst Target | [values] |
+| Recommendation | [values] |
+
+---
+
+## 📈 Technical Comparison
+[Compare RSI, MACD, price performance for each company]
+
+---
+
+## ⚠️ Key Risks
+[Main risks for each company from SEC filings]
+
+---
+
+## 📎 Evidence & Sources (XAI)
+**Data sources used:**
+- Market data: yfinance
+- SEC filings: {', '.join([f'{t}_10-K' for t in tickers])}
+
+---
+
+## ⚠️ Disclaimer
+*This report is AI-generated for educational purposes only. Not financial advice.*"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    answer = response.choices[0].message.content.strip()
+    updated_messages = messages + [
+        {"role": "user",      "content": question},
+        {"role": "assistant", "content": answer},
+    ]
+
+    print(f"  [Node Comparison] Comparison report generated for {tickers}")
     return {"answer": answer, "messages": updated_messages}

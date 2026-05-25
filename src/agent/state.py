@@ -12,7 +12,8 @@ class AgentState(TypedDict):
     data_status: Optional[str]   # RETRIEVE / FETCH_NEEDED / NO_TICKER
 
     # Extracted parameters
-    ticker: Optional[str]        # e.g. "AAPL"
+    ticker: Optional[str]        # primary ticker e.g. "AAPL"
+    tickers: Optional[list]      # all tickers e.g. ["AAPL"] or ["AAPL", "MSFT"]
     year: Optional[str]          # e.g. "2025" or None for latest
 
     # Retrieval

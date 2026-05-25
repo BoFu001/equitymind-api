@@ -12,6 +12,8 @@ from src.agent.nodes import (
     generate_report,
     handle_out_of_scope,
     handle_greeting,
+    handle_portfolio,
+    handle_comparison,
 )
 
 
@@ -20,15 +22,23 @@ from src.agent.nodes import (
 # ─────────────────────────────────────────────
 
 def route_intent(state: AgentState) -> str:
-    """Routes after Node 1 based on intent."""
     intent = state.get("intent", "")
     if intent == "OUT_OF_SCOPE":
         return "out_of_scope"
     elif intent == "GREETING":
         return "greeting"
+    elif intent == "PORTFOLIO":
+        return "portfolio"
     else:
-        return "extract"
+        return "extract"  # COMPARISON, SPECIFIC_STOCK, ANALYZE_POSITION, ANALYZE_PORTFOLIO all go through extract first
 
+def route_after_extract(state: AgentState) -> str:
+    """Routes after Node 2 based on intent."""
+    intent = state.get("intent", "")
+    if intent == "COMPARISON":
+        return "comparison"
+    else:
+        return "check_pinecone"
 
 def route_data_status(state: AgentState) -> str:
     """Routes after Node 3 based on data_status."""
@@ -59,6 +69,8 @@ def build_graph():
     graph.add_node("report",        generate_report)
     graph.add_node("out_of_scope",  handle_out_of_scope)
     graph.add_node("greeting",      handle_greeting)
+    graph.add_node("portfolio",     handle_portfolio)
+    graph.add_node("comparison",    handle_comparison)
 
     # Entry point
     graph.set_entry_point("classify")
@@ -70,12 +82,20 @@ def build_graph():
         {
             "out_of_scope": "out_of_scope",
             "greeting":     "greeting",
+            "portfolio":    "portfolio",
             "extract":      "extract",
         }
     )
 
-    # Normal edges
-    graph.add_edge("extract",        "check_pinecone")
+    # Conditional edge after Node 2
+    graph.add_conditional_edges(
+        "extract",
+        route_after_extract,
+        {
+            "comparison":    "comparison",
+            "check_pinecone": "check_pinecone",
+        }
+    )
 
     # Conditional edge after Node 3
     graph.add_conditional_edges(
@@ -97,9 +117,11 @@ def build_graph():
     graph.add_edge("news",        "report")
 
     # End nodes
-    graph.add_edge("report",      END)
+    graph.add_edge("report",       END)
     graph.add_edge("out_of_scope", END)
-    graph.add_edge("greeting",    END)
+    graph.add_edge("greeting",     END)
+    graph.add_edge("portfolio",    END)
+    graph.add_edge("comparison",   END)
 
     return graph.compile()
 
