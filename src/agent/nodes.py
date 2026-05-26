@@ -3,7 +3,7 @@ from datetime import datetime
 
 from openai import OpenAI
 
-from config import OPENAI_API_KEY, APP_NAME
+from config import OPENAI_API_KEY, APP_NAME, LLM_MODEL
 from src.agent.state import AgentState
 from src.tools.market_data import get_stock_data
 from src.tools.news_sentiment import get_news_and_sentiment
@@ -20,7 +20,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 def classify_intent(state: AgentState) -> dict:
     """
     Classifies the user's question into one of seven categories.
-    Uses GPT-4o with a strict prompt — returns only the category name.
+    Uses LLM with a strict prompt — returns only the category name.
     """
     question = state["question"]
 
@@ -40,7 +40,7 @@ User question: {question}
 Reply with ONLY the category name. Nothing else."""
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
     )
@@ -79,7 +79,7 @@ Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example
 {{"tickers": [], "year": null}}"""
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
     )
@@ -87,7 +87,7 @@ Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example
     content = response.choices[0].message.content.strip()
 
     if not content:
-        print(f"  [Node 2] Empty response from GPT-4o, using defaults")
+        print(f"  [Node 2] Empty response from {LLM_MODEL}, using defaults")
         return {"ticker": None, "tickers": [], "year": None}
 
     try:
@@ -200,7 +200,7 @@ def get_news(state: AgentState) -> dict:
 def generate_report(state: AgentState) -> dict:
     """
     Combines all data and generates a structured investment report.
-    Uses GPT-4o with full context: SEC chunks, market data, news.
+    Uses LLM with full context: SEC chunks, market data, news.
     Implements XAI by including evidence and sources.
     """
     question    = state["question"]
@@ -350,7 +350,7 @@ Generate the report in this EXACT structure:
 """
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
     )
@@ -471,7 +471,7 @@ End with:
 ⚠️ *This is AI-generated for educational purposes only. Not financial advice.*"""
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
     )
@@ -595,7 +595,7 @@ Generate a structured comparison report in markdown format:
 *This report is AI-generated for educational purposes only. Not financial advice.*"""
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
     )

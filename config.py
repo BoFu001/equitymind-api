@@ -3,6 +3,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# LLM
+LLM_MODEL = "gpt-4o"
+
+# APP
 APP_NAME = "EquityMind"
 
 # Paths
