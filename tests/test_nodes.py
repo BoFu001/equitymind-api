@@ -9,7 +9,7 @@ from src.agent.nodes import (
     get_news,
     handle_out_of_scope,
     handle_greeting,
-    handle_portfolio,
+    handle_discovery,
     handle_comparison,
 )
 
@@ -61,10 +61,10 @@ def test_classify_intent_comparison():
     result = classify_intent(state)
     assert result["intent"] == "COMPARISON"
 
-def test_classify_intent_portfolio():
+def test_classify_intent_discovery():
     state = make_state(question="Find me a low risk stock")
     result = classify_intent(state)
-    assert result["intent"] == "PORTFOLIO"
+    assert result["intent"] == "DISCOVERY"
 
 # ─────────────────────────────────────────────
 # Node 2: Extract Parameters
@@ -112,7 +112,7 @@ def test_extract_parameters_tencent():
     state = make_state(question="Analyse Tencent")
     result = extract_parameters(state)
     assert result["ticker"] == "0700.HK"
-    
+
 # ─────────────────────────────────────────────
 # Node 3: Check Pinecone
 # ─────────────────────────────────────────────
@@ -221,13 +221,13 @@ def test_handle_greeting():
 
 
 # ─────────────────────────────────────────────
-# Node 10: Portfolio Recommendation
+# Node 10: Discovery Recommendation
 # ─────────────────────────────────────────────
 
 
-def test_handle_portfolio():
+def test_handle_discovery():
     state = make_state(question="Find me a low risk stock")
-    result = handle_portfolio(state)
+    result = handle_discovery(state)
     assert "answer" in result
     assert len(result["answer"]) > 0
     assert "messages" in result

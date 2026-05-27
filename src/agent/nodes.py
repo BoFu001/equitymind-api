@@ -29,7 +29,7 @@ Classify the user question into exactly one of these categories:
 
 - SPECIFIC_STOCK: user asks about one specific company (e.g. "What are Apple's risks?", "Analyse NVIDIA")
 - COMPARISON: user wants to compare two or more companies (e.g. "Compare Apple and Microsoft")
-- PORTFOLIO: user wants general investment recommendations (e.g. "Find me a low risk stock")
+- DISCOVERY: user wants general investment recommendations (e.g. "Find me a low risk stock")
 - ANALYZE_POSITION: user asks about their own holding in one stock (e.g. "I bought AAPL at $165, should I sell?", "I have 200 Apple shares, what should I do?")
 - ANALYZE_PORTFOLIO: user wants to analyse their full portfolio of multiple stocks (e.g. "Review my portfolio: AAPL 200 shares, NVDA 50 shares")
 - GREETING: user is saying hello or asking what {APP_NAME} can do (e.g. "Hi", "What can you do?")
@@ -442,11 +442,11 @@ What would you like to research today?"""
 
 
 # ─────────────────────────────────────────────
-# Node 10: Handle Portfolio Recommendation
+# Node 10: Handle Discovery Recommendation
 # ─────────────────────────────────────────────
-def handle_portfolio(state: AgentState) -> dict:
+def handle_discovery(state: AgentState) -> dict:
     """
-    Handles general portfolio/investment recommendation requests.
+    Handles general discovery/investment recommendation requests.
     No specific ticker — uses GPT-4o to recommend from our 14 companies.
     """
     question = state["question"]

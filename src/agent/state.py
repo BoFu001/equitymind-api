@@ -6,7 +6,7 @@ class AgentState(TypedDict):
     messages: list              # full conversation history
 
     # Intent classification
-    intent: Optional[str]        # SPECIFIC_STOCK / COMPARISON / PORTFOLIO / ANALYZE_POSITION / ANALYZE_PORTFOLIO / GREETING / OUT_OF_SCOPE
+    intent: Optional[str]        # SPECIFIC_STOCK / COMPARISON / DISCOVERY / ANALYZE_POSITION / ANALYZE_PORTFOLIO / GREETING / OUT_OF_SCOPE
     
     # Routing decision
     data_status: Optional[str]   # RETRIEVE / FETCH_NEEDED / NO_TICKER

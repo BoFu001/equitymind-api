@@ -12,7 +12,7 @@ from src.agent.nodes import (
     generate_report,
     handle_out_of_scope,
     handle_greeting,
-    handle_portfolio,
+    handle_discovery,
     handle_comparison,
 )
 
@@ -27,8 +27,8 @@ def route_intent(state: AgentState) -> str:
         return "out_of_scope"
     elif intent == "GREETING":
         return "greeting"
-    elif intent == "PORTFOLIO":
-        return "portfolio"
+    elif intent == "DISCOVERY":
+        return "discovery"
     else:
         return "extract"  # COMPARISON, SPECIFIC_STOCK, ANALYZE_POSITION, ANALYZE_PORTFOLIO all go through extract first
 
@@ -69,7 +69,7 @@ def build_graph():
     graph.add_node("report",        generate_report)
     graph.add_node("out_of_scope",  handle_out_of_scope)
     graph.add_node("greeting",      handle_greeting)
-    graph.add_node("portfolio",     handle_portfolio)
+    graph.add_node("discovery",     handle_discovery)
     graph.add_node("comparison",    handle_comparison)
 
     # Entry point
@@ -82,7 +82,7 @@ def build_graph():
         {
             "out_of_scope": "out_of_scope",
             "greeting":     "greeting",
-            "portfolio":    "portfolio",
+            "discovery":    "discovery",
             "extract":      "extract",
         }
     )
@@ -120,7 +120,7 @@ def build_graph():
     graph.add_edge("report",       END)
     graph.add_edge("out_of_scope", END)
     graph.add_edge("greeting",     END)
-    graph.add_edge("portfolio",    END)
+    graph.add_edge("discovery",    END)
     graph.add_edge("comparison",   END)
 
     return graph.compile()
