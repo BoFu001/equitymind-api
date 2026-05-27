@@ -481,11 +481,9 @@ Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example
         candidate_tickers = ticker_data.get("tickers", [])
     except Exception:
         print(f"  [handle_discovery] Could not parse candidate tickers")
-        answer = f"""I'm sorry, I had trouble finding suitable companies for your criteria.
+        answer = f"""I encountered a technical issue processing your request.
 
-Please try:
-- Being more specific (e.g. "Find me a low risk healthcare stock")
-- Asking about a specific company (e.g. "Analyse Johnson and Johnson")"""
+Please try again or rephrase your question."""
         updated_messages = messages + [
             {"role": "user",      "content": question},
             {"role": "assistant", "content": answer},
@@ -493,9 +491,11 @@ Please try:
         return {"answer": answer, "messages": updated_messages}
 
     if not candidate_tickers:
-        answer = f"""I'm sorry, I couldn't find suitable companies for your criteria.
+        answer = f"""I couldn't find companies matching your specific criteria.
 
-Please try rephrasing your question or ask about a specific company."""
+Please try:
+- Being more specific (e.g. "Find me a low risk healthcare stock")
+- Asking about a specific company (e.g. "Analyse Johnson and Johnson")"""
         updated_messages = messages + [
             {"role": "user",      "content": question},
             {"role": "assistant", "content": answer},
