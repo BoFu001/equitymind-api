@@ -95,6 +95,24 @@ def test_extract_parameters_multiple_tickers():
     assert result["tickers"] == ["AAPL", "MSFT"]
     assert result["ticker"] == "AAPL"
     
+
+
+
+def test_extract_parameters_amazon():
+    state = make_state(question="Analyse Amazon")
+    result = extract_parameters(state)
+    assert result["ticker"] == "AMZN"
+
+def test_extract_parameters_alibaba():
+    state = make_state(question="Analyse Alibaba")
+    result = extract_parameters(state)
+    assert result["ticker"] == "BABA"
+
+def test_extract_parameters_tencent():
+    state = make_state(question="Analyse Tencent")
+    result = extract_parameters(state)
+    assert result["ticker"] == "0700.HK"
+    
 # ─────────────────────────────────────────────
 # Node 3: Check Pinecone
 # ─────────────────────────────────────────────

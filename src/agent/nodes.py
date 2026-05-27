@@ -67,15 +67,17 @@ def extract_parameters(state: AgentState) -> dict:
 Extract the stock ticker(s) and year from the user question.
 
 Rules:
-- tickers: list of ALL stock symbols mentioned in uppercase. If none, return [].
+- tickers: list of ALL stock ticker symbols. Convert ANY company name to its ticker symbol. If no company or ticker mentioned, return [].
 - year: the year mentioned. If not mentioned, return null.
-- Convert company names to tickers (e.g. Apple → AAPL, Microsoft → MSFT, Tesla → TSLA, NVIDIA → NVDA, Google → GOOGL, AMD → AMD).
+- Examples of conversions: Apple → AAPL, Microsoft → MSFT, Tesla → TSLA, NVIDIA → NVDA, Google → GOOGL, Amazon → AMZN, Alibaba → BABA, Meta → META, Samsung → 005930.KS
 
 User question: {question}
 
 Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example:
 {{"tickers": ["AAPL"], "year": null}}
 {{"tickers": ["AAPL", "MSFT"], "year": null}}
+{{"tickers": ["BABA"], "year": null}}
+{{"tickers": ["AMZN"], "year": null}}
 {{"tickers": [], "year": null}}"""
 
     response = client.chat.completions.create(
@@ -211,10 +213,13 @@ def generate_report(state: AgentState) -> dict:
     messages    = state.get("messages") or []
 
     # ── Format SEC chunks for prompt ──
-    sec_context = ""
-    for i, chunk in enumerate(chunks):
-        sec_context += f"\n[SEC Source {i+1}: {chunk.get('source','')} | Score: {chunk.get('score',0):.2f}]\n"
-        sec_context += chunk.get("text", "") + "\n"
+    if not chunks:
+        sec_context = f"No SEC 10-K filing available for {ticker}. This company may be a foreign filer (20-F) or the filing could not be retrieved."
+    else:
+        sec_context = ""
+        for i, chunk in enumerate(chunks):
+            sec_context += f"\n[SEC Source {i+1}: {chunk.get('source','')} | Score: {chunk.get('score',0):.2f}]\n"
+            sec_context += chunk.get("text", "") + "\n"
 
     # ── Format market data for prompt ──
     md = market_data

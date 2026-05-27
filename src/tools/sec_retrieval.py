@@ -34,6 +34,11 @@ def fetch_embed_store_retrieve(question: str, ticker: str, top_k: int = 5) -> li
 
     # Step 1: Download and chunk
     chunks = ingest_sec_filing(ticker)
+
+    if not chunks:
+        print(f"  [sec_retrieval] No 10-K data for {ticker} — skipping embed/store")
+        return []
+
     print(f"  [sec_retrieval] Downloaded {len(chunks)} chunks")
 
     # Step 2: Embed

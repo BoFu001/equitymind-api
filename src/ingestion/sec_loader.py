@@ -64,8 +64,14 @@ def ingest_sec_filing(ticker: str, filing_type: str = "10-K") -> list[dict]:
     print(f"\n{'='*50}")
     print(f"Processing {ticker}...")
 
-    tenk, filing_date = get_latest_tenk(ticker)
-    print(f"  Filing date: {filing_date}")
+    try:
+        tenk, filing_date = get_latest_tenk(ticker)
+    except ValueError as e:
+        print(f"  No 10-K filing found for {ticker}: {e}")
+        return []
+    except Exception as e:
+        print(f"  Unexpected error fetching {ticker}: {e}")
+        return []
 
     all_chunks = []
     for section_key, (attr, label) in SECTIONS.items():
