@@ -14,7 +14,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 # ─────────────────────────────────────────────
-# Node 1: Intent Classification
+# Node: Intent Classification
 # ─────────────────────────────────────────────
 
 def classify_intent(state: AgentState) -> dict:
@@ -46,7 +46,7 @@ Reply with ONLY the category name. Nothing else."""
     )
 
     intent = response.choices[0].message.content.strip()
-    print(f"  [Node 1] Intent: {intent}")
+    print(f"  [classify_intent] Intent: {intent}")
     return {"intent": intent}
 
 
@@ -54,7 +54,7 @@ Reply with ONLY the category name. Nothing else."""
 
 
 # ─────────────────────────────────────────────
-# Node 2: Extract Parameters
+# Node: Extract Parameters
 # ─────────────────────────────────────────────
 def extract_parameters(state: AgentState) -> dict:
     """
@@ -89,26 +89,26 @@ Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example
     content = response.choices[0].message.content.strip()
 
     if not content:
-        print(f"  [Node 2] Empty response from {LLM_MODEL}, using defaults")
+        print(f"  [extract_parameters] Empty response from {LLM_MODEL}, using defaults")
         return {"ticker": None, "tickers": [], "year": None}
 
     try:
         data = json.loads(content)
     except json.JSONDecodeError:
-        print(f"  [Node 2] Invalid JSON: {content}")
+        print(f"  [extract_parameters] Invalid JSON: {content}")
         return {"ticker": None, "tickers": [], "year": None}
 
     tickers = data.get("tickers", [])
     ticker  = tickers[0] if tickers else None
     year    = str(data.get("year")) if data.get("year") else None
 
-    print(f"  [Node 2] Ticker: {ticker}, Tickers: {tickers}, Year: {year}")
+    print(f"  [extract_parameters] Ticker: {ticker}, Tickers: {tickers}, Year: {year}")
     return {"ticker": ticker, "tickers": tickers, "year": year}
 
 
 
 # ─────────────────────────────────────────────
-# Node 3: Check Pinecone
+# Node: Check Pinecone
 # ─────────────────────────────────────────────
 def check_pinecone(state: AgentState) -> dict:
     """
@@ -122,30 +122,30 @@ def check_pinecone(state: AgentState) -> dict:
         return {"data_status": "NO_TICKER"}
 
     if check_ticker_exists(ticker):
-        print(f"  [Node 3] {ticker} found in Pinecone → retrieve")
+        print(f"  [check_pinecone] {ticker} found in Pinecone → retrieve")
         return {"data_status": "RETRIEVE"}
     else:
-        print(f"  [Node 3] {ticker} not found in Pinecone → fetch from SEC")
+        print(f"  [check_pinecone] {ticker} not found in Pinecone → fetch from SEC")
         return {"data_status": "FETCH_NEEDED"}
 
 
 # ─────────────────────────────────────────────
-# Node 4A: Retrieve Chunks from Pinecone
+# Node: Retrieve Chunks from Pinecone
 # ─────────────────────────────────────────────
 def retrieve_chunks(state: AgentState) -> dict:
     """Retrieves relevant chunks from Pinecone."""
     chunks = retrieve(state["question"], state["ticker"])
-    print(f"  [Node 4A] Retrieved {len(chunks)} chunks for {state['ticker']}")
+    print(f"  [retrieve_chunks] Retrieved {len(chunks)} chunks for {state['ticker']}")
     return {"chunks": chunks}
 
 
 # ─────────────────────────────────────────────
-# Node 4B: Fetch from SEC, Embed, Store, Retrieve
+# Node: Fetch from SEC, Embed, Store, Retrieve
 # ─────────────────────────────────────────────
 def fetch_and_retrieve(state: AgentState) -> dict:
     """Dynamically fetches SEC filing, embeds, stores, then retrieves."""
     chunks = fetch_embed_store_retrieve(state["question"], state["ticker"])
-    print(f"  [Node 4B] Retrieved {len(chunks)} chunks for {state['ticker']}")
+    print(f"  [fetch_and_retrieve] Retrieved {len(chunks)} chunks for {state['ticker']}")
     return {"chunks": chunks}
 
 
@@ -153,7 +153,7 @@ def fetch_and_retrieve(state: AgentState) -> dict:
 
 
 # ─────────────────────────────────────────────
-# Node 5: Get Market Data
+# Node: Get Market Data
 # ─────────────────────────────────────────────
 def get_market_data(state: AgentState) -> dict:
     """
@@ -165,7 +165,7 @@ def get_market_data(state: AgentState) -> dict:
         return {"market_data": None}
 
     market_data = get_stock_data(ticker)
-    print(f"  [Node 5] Market data fetched for {ticker}: price={market_data.get('current_price') if market_data else None}")
+    print(f"  [get_market_data] Market data fetched for {ticker}: price={market_data.get('current_price') if market_data else None}")
     return {"market_data": market_data}
 
 
@@ -174,7 +174,7 @@ def get_market_data(state: AgentState) -> dict:
 
 
 # ─────────────────────────────────────────────
-# Node 6: Get News and Sentiment
+# Node: Get News and Sentiment
 # ─────────────────────────────────────────────
 def get_news(state: AgentState) -> dict:
     """
@@ -190,14 +190,14 @@ def get_news(state: AgentState) -> dict:
         return {"news": []}
 
     news = get_news_and_sentiment(ticker)
-    print(f"  [Node 6] {len(news)} articles fetched for {ticker}")
+    print(f"  [get_news] {len(news)} articles fetched for {ticker}")
     return {"news": news}
 
 
 
 
 # ─────────────────────────────────────────────
-# Node 7: Generate Report
+# Node: Generate Report
 # ─────────────────────────────────────────────
 def generate_report(state: AgentState) -> dict:
     """
@@ -368,7 +368,7 @@ Generate the report in this EXACT structure:
         {"role": "assistant", "content": answer},
     ]
 
-    print(f"  [Node 7] Report generated for {ticker} ({len(answer)} chars)")
+    print(f"  [generate_report] Report generated for {ticker} ({len(answer)} chars)")
     return {"answer": answer, "messages": updated_messages}
 
 
@@ -376,7 +376,7 @@ Generate the report in this EXACT structure:
 
 
 # ─────────────────────────────────────────────
-# Node 8: Handle Out of Scope
+# Node: Handle Out of Scope
 # ─────────────────────────────────────────────
 def handle_out_of_scope(state: AgentState) -> dict:
     """
@@ -405,7 +405,7 @@ What stock would you like me to research?"""
 
 
 # ─────────────────────────────────────────────
-# Node 9: Handle Greeting
+# Node: Handle Greeting
 # ─────────────────────────────────────────────
 def handle_greeting(state: AgentState) -> dict:
     """
@@ -442,38 +442,151 @@ What would you like to research today?"""
 
 
 # ─────────────────────────────────────────────
-# Node 10: Handle Discovery Recommendation
+# Node: Handle Discovery Recommendation
 # ─────────────────────────────────────────────
 def handle_discovery(state: AgentState) -> dict:
     """
     Handles general discovery/investment recommendation requests.
-    No specific ticker — uses GPT-4o to recommend from our 14 companies.
+    Step 1: LLM suggests 5 candidate tickers based on user criteria.
+    Step 2: Fetch real market data and SEC chunks for each candidate.
+    Step 3: LLM ranks and recommends top 3 based on real data.
     """
     question = state["question"]
     messages = state.get("messages") or []
 
-    prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
-The user is asking for general investment recommendations.
+    # ── Step 1: Ask LLM to suggest 5 candidate tickers ──
+    ticker_prompt = f"""You are a financial analyst.
+The user wants investment recommendations based on their criteria.
 
 USER QUESTION: {question}
 
-Our coverage universe includes these 14 companies:
-Technology: AAPL, MSFT, NVDA
-Automotive/EV: TSLA
-Financial: JPM, BAC
-Healthcare: JNJ, PFE
-Energy: XOM
-Consumer: WMT
-Industrial: BRK-B, GE, BA, CAT
+Return exactly 5 stock tickers that could match the user's criteria.
+IMPORTANT: Only suggest US-listed companies that file 10-K annual reports with the SEC.
+Do NOT suggest foreign companies or ADRs (e.g. Alibaba, ASML, Toyota, TSM).
 
-Based on the user's request, recommend 2-3 suitable companies from our coverage universe.
-Explain why each fits their criteria.
-Tell them they can ask for a detailed analysis of any specific company.
+Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example:
+{{"tickers": ["JNJ", "WMT", "BRK-B", "PFE", "JPM"]}}
 
-Use markdown format with emojis. Be concise but helpful.
+# NOTE: Once 20-F pipeline is built (sec_loader_20f.py),
+# remove the 10-K constraint above to support global companies."""
 
-End with:
-⚠️ *This is AI-generated for educational purposes only. Not financial advice.*"""
+    ticker_response = client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[{"role": "user", "content": ticker_prompt}],
+        temperature=0,
+    )
+
+    try:
+        ticker_data = json.loads(ticker_response.choices[0].message.content.strip())
+        candidate_tickers = ticker_data.get("tickers", [])
+    except Exception:
+        print(f"  [handle_discovery] Could not parse candidate tickers")
+        answer = f"""I'm sorry, I had trouble finding suitable companies for your criteria.
+
+Please try:
+- Being more specific (e.g. "Find me a low risk healthcare stock")
+- Asking about a specific company (e.g. "Analyse Johnson and Johnson")"""
+        updated_messages = messages + [
+            {"role": "user",      "content": question},
+            {"role": "assistant", "content": answer},
+        ]
+        return {"answer": answer, "messages": updated_messages}
+
+    if not candidate_tickers:
+        answer = f"""I'm sorry, I couldn't find suitable companies for your criteria.
+
+Please try rephrasing your question or ask about a specific company."""
+        updated_messages = messages + [
+            {"role": "user",      "content": question},
+            {"role": "assistant", "content": answer},
+        ]
+        return {"answer": answer, "messages": updated_messages}
+
+    print(f"  [handle_discovery] Step 1 — Candidates: {candidate_tickers}")
+
+    # ── Step 2: Fetch real data for each candidate ──
+    all_market_data = {}
+    for t in candidate_tickers:
+        data = get_stock_data(t)
+        if data:
+            all_market_data[t] = data
+
+    all_chunks = {}
+    for t in candidate_tickers:
+        try:
+            if check_ticker_exists(t):
+                chunks = retrieve(question, t, top_k=3)
+            else:
+                chunks = fetch_embed_store_retrieve(question, t, top_k=3)
+            all_chunks[t] = chunks
+        except Exception as e:
+            print(f"  [handle_discovery] Could not fetch SEC data for {t}: {e}")
+            all_chunks[t] = []
+
+    print(f"  [handle_discovery] Step 2 — Real data fetched for {list(all_market_data.keys())}")
+
+    # ── Step 3: Format real data for prompt ──
+    market_context = ""
+    for t, md in all_market_data.items():
+        market_context += f"\n{t} ({md.get('company_name')}):\n"
+        market_context += f"  Price: ${md.get('current_price')} | P/E: {md.get('pe_ratio')} | Forward P/E: {md.get('forward_pe')}\n"
+        market_context += f"  Revenue: {md.get('revenue')} | Profit Margin: {md.get('profit_margin')}\n"
+        market_context += f"  RSI: {md.get('rsi')} | Dividend Yield: {md.get('dividend_yield')}\n"
+        market_context += f"  Analyst Target: ${md.get('target_mean')} | Recommendation: {md.get('recommendation')}\n"
+
+    sec_context = ""
+    for t, chunks in all_chunks.items():
+        sec_context += f"\n{t} SEC Filing:\n"
+        if not chunks:
+            sec_context += "  No SEC 10-K data available.\n"
+        else:
+            for chunk in chunks:
+                sec_context += chunk.get("text", "")[:300] + "\n"
+
+    # ── Step 4: LLM ranks and recommends top 3 ──
+    prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
+The user wants investment recommendations. You have real market data and SEC filing data
+for 5 candidate companies. Use this real data to rank and recommend the top 3.
+
+USER QUESTION: {question}
+DATE: {datetime.now().strftime('%B %d, %Y')}
+
+REAL MARKET DATA FOR 5 CANDIDATES:
+{market_context}
+
+SEC FILING EXCERPTS:
+{sec_context}
+
+Based on the REAL DATA above:
+1. Rank all 5 companies against the user's criteria
+2. Select the TOP 3 that best match
+3. Explain why each was selected using specific numbers from the real data
+4. Briefly explain why the other 2 were not selected
+
+Generate in markdown format:
+
+# Investment Recommendations
+*Generated by {APP_NAME} · {datetime.now().strftime('%B %d, %Y')}*
+
+## Top 3 Recommendations
+[For each of top 3 — explain with real numbers why it fits the user's criteria]
+
+## Why we excluded the others
+[Brief explanation for the 2 not selected — based on real data]
+
+## Summary Comparison (Top 3)
+| Metric | [ticker1] | [ticker2] | [ticker3] |
+|--------|-----------|-----------|-----------|
+| Price | | | |
+| P/E Ratio | | | |
+| RSI | | | |
+| Dividend Yield | | | |
+| Analyst View | | | |
+
+## Next Steps
+Ask me for a detailed analysis of any of these companies.
+
+*This is AI-generated for educational purposes only. Not financial advice.*"""
 
     response = client.chat.completions.create(
         model=LLM_MODEL,
@@ -487,12 +600,12 @@ End with:
         {"role": "assistant", "content": answer},
     ]
 
-    print(f"  [Node Portfolio] Portfolio recommendation generated")
+    print(f"  [handle_discovery] Step 3 — Recommendation generated for top 3 from {candidate_tickers}")
     return {"answer": answer, "messages": updated_messages}
 
 
 # ─────────────────────────────────────────────
-# Node 11: Handle Comparison
+# Node: Handle Comparison
 # ─────────────────────────────────────────────
 def handle_comparison(state: AgentState) -> dict:
     """
@@ -611,5 +724,5 @@ Generate a structured comparison report in markdown format:
         {"role": "assistant", "content": answer},
     ]
 
-    print(f"  [Node Comparison] Comparison report generated for {tickers}")
+    print(f"  [handle_comparison] Comparison report generated for {tickers}")
     return {"answer": answer, "messages": updated_messages}

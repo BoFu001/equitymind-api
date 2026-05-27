@@ -38,7 +38,7 @@ def make_state(**kwargs) -> AgentState:
 
 
 # ─────────────────────────────────────────────
-# Node 1: Intent Classification
+# Node: Intent Classification
 # ─────────────────────────────────────────────
 
 def test_classify_intent_specific_stock():
@@ -67,7 +67,7 @@ def test_classify_intent_discovery():
     assert result["intent"] == "DISCOVERY"
 
 # ─────────────────────────────────────────────
-# Node 2: Extract Parameters
+# Node: Extract Parameters
 # ─────────────────────────────────────────────
 
 def test_extract_parameters_aapl():
@@ -114,7 +114,7 @@ def test_extract_parameters_tencent():
     assert result["ticker"] == "0700.HK"
 
 # ─────────────────────────────────────────────
-# Node 3: Check Pinecone
+# Node: Check Pinecone
 # ─────────────────────────────────────────────
 
 def test_check_pinecone_exists():
@@ -134,7 +134,7 @@ def test_check_pinecone_no_ticker():
 
 
 # ─────────────────────────────────────────────
-# Node 4A: Retrieve Chunks
+# Node: Retrieve Chunks
 # ─────────────────────────────────────────────
 
 def test_retrieve_chunks_aapl():
@@ -151,7 +151,7 @@ def test_retrieve_chunks_aapl():
 
 
 # ─────────────────────────────────────────────
-# Node 5: Market Data
+# Node: Market Data
 # ─────────────────────────────────────────────
 
 def test_get_market_data_aapl():
@@ -169,7 +169,7 @@ def test_get_market_data_no_ticker():
 
 
 # ─────────────────────────────────────────────
-# Node 6: News and Sentiment
+# Node: News and Sentiment
 # ─────────────────────────────────────────────
 
 def test_get_news_aapl():
@@ -191,7 +191,7 @@ def test_get_news_no_ticker():
 
 
 # ─────────────────────────────────────────────
-# Node 8: Out of Scope
+# Node: Out of Scope
 # ─────────────────────────────────────────────
 
 def test_handle_out_of_scope():
@@ -204,7 +204,7 @@ def test_handle_out_of_scope():
 
 
 # ─────────────────────────────────────────────
-# Node 9: Greeting
+# Node: Greeting
 # ─────────────────────────────────────────────
 
 def test_handle_greeting():
@@ -221,7 +221,7 @@ def test_handle_greeting():
 
 
 # ─────────────────────────────────────────────
-# Node 10: Discovery Recommendation
+# Node: Discovery Recommendation
 # ─────────────────────────────────────────────
 
 
@@ -234,7 +234,7 @@ def test_handle_discovery():
     assert len(result["messages"]) == 2
 
 # ─────────────────────────────────────────────
-# Node 11: Comparison
+# Node: Comparison
 # ─────────────────────────────────────────────
 
 
