@@ -27,13 +27,13 @@ def classify_intent(state: AgentState) -> dict:
     prompt = f"""You are {APP_NAME}'s intent classifier.
 Classify the user question into exactly one of these categories:
 
-- SPECIFIC_STOCK: user asks about one specific company (e.g. "What are Apple's risks?", "Analyse NVIDIA")
-- COMPARISON: user wants to compare two or more companies (e.g. "Compare Apple and Microsoft")
-- DISCOVERY: user wants general investment recommendations (e.g. "Find me a low risk stock")
+- SPECIFIC_STOCK: user asks about one NAMED specific company (e.g. "What are Apple's risks?", "Analyse NVIDIA", "Tell me about Tesla"). The company must be explicitly named — NOT vague like "a tech company" or "a healthcare stock".
+- COMPARISON: user wants to compare two or more NAMED companies (e.g. "Compare Apple and Microsoft")
+- DISCOVERY: user wants general investment recommendations, asks about a sector, or asks general financial market questions without naming a specific company (e.g. "Find me a low risk stock", "Analyse a tech company", "Tell me about semiconductor stocks", "Tell me about the stock market", "What is a good investment?")
 - ANALYZE_POSITION: user asks about their own holding in one stock (e.g. "I bought AAPL at $165, should I sell?", "I have 200 Apple shares, what should I do?")
 - ANALYZE_PORTFOLIO: user wants to analyse their full portfolio of multiple stocks (e.g. "Review my portfolio: AAPL 200 shares, NVDA 50 shares")
 - GREETING: user is saying hello or asking what {APP_NAME} can do (e.g. "Hi", "What can you do?")
-- OUT_OF_SCOPE: question is not related to stock investing at all (e.g. "I want to be rich", "What's the weather?")
+- OUT_OF_SCOPE: question has NO relation to investing, stocks, or financial markets (e.g. "I want to be rich", "What's the weather?", "Am I handsome?")
 
 User question: {question}
 
@@ -119,6 +119,7 @@ def check_pinecone(state: AgentState) -> dict:
     ticker = state["ticker"]
 
     if not ticker:
+        print(f"  [check_pinecone] No ticker found — routing to out_of_scope")
         return {"data_status": "NO_TICKER"}
 
     if check_ticker_exists(ticker):

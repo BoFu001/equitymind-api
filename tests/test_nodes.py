@@ -66,6 +66,16 @@ def test_classify_intent_discovery():
     result = classify_intent(state)
     assert result["intent"] == "DISCOVERY"
 
+def test_classify_intent_stock_market():
+    state = make_state(question="Tell me about the stock market")
+    result = classify_intent(state)
+    assert result["intent"] == "DISCOVERY"
+
+def test_classify_intent_vague_sector():
+    state = make_state(question="Analyse a tech company")
+    result = classify_intent(state)
+    assert result["intent"] == "DISCOVERY"
+
 # ─────────────────────────────────────────────
 # Node: Extract Parameters
 # ─────────────────────────────────────────────
