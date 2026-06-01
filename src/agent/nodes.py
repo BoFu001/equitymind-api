@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 
 from openai import OpenAI
@@ -412,6 +413,11 @@ What stock would you like me to research?"""
         {"role": "assistant", "content": answer},
     ]
 
+    queue = token_queue_var.get()
+    if queue:
+        for word in re.findall(r'\S+|\s+', answer):
+            queue.put_nowait(word)
+
     return {"answer": answer, "messages": updated_messages}
 
 
@@ -445,6 +451,11 @@ What would you like to research today?"""
         {"role": "user",      "content": question},
         {"role": "assistant", "content": answer},
     ]
+
+    queue = token_queue_var.get()
+    if queue:
+        for word in re.findall(r'\S+|\s+', answer):
+            queue.put_nowait(word)
 
     return {"answer": answer, "messages": updated_messages}
 
