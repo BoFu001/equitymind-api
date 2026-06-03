@@ -54,6 +54,7 @@ NODE_MESSAGES: dict[str, str] = {
     "discovery":     "Finding investment recommendations...",
     "greeting":      "Processing...",
     "out_of_scope":  "Processing...",
+    "no_ticker":     "Processing...",
 }
 
 

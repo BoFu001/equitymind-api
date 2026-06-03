@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from datetime import datetime
 
 from openai import OpenAI
@@ -30,7 +31,7 @@ def classify_intent(state: AgentState) -> dict:
 Classify the user question into exactly one of these categories:
 
 - SPECIFIC_STOCK: user asks about one NAMED specific company (e.g. "What are Apple's risks?", "Analyse NVIDIA", "Tell me about Tesla"). The company must be explicitly named — NOT vague like "a tech company" or "a healthcare stock".
-- COMPARISON: user wants to compare two or more NAMED companies (e.g. "Compare Apple and Microsoft")
+- COMPARISON: user wants to compare two or more EXPLICITLY NAMED companies with real identifiable stock tickers (e.g. "Compare Apple and Microsoft", "AAPL vs GOOGL", "Tesla versus BMW"). IMPORTANT: if no specific company names are mentioned, classify as DISCOVERY instead. "Compare two tech companies" or "Compare them" are DISCOVERY, not COMPARISON.
 - DISCOVERY: user wants general investment recommendations, asks about a sector, or asks general financial market questions without naming a specific company (e.g. "Find me a low risk stock", "Analyse a tech company", "Tell me about semiconductor stocks", "Tell me about the stock market", "What is a good investment?")
 - ANALYZE_POSITION: user asks about their own holding in one stock (e.g. "I bought AAPL at $165, should I sell?", "I have 200 Apple shares, what should I do?")
 - ANALYZE_PORTFOLIO: user wants to analyse their full portfolio of multiple stocks (e.g. "Review my portfolio: AAPL 200 shares, NVDA 50 shares")
@@ -119,10 +120,6 @@ def check_pinecone(state: AgentState) -> dict:
     If no → route to fetch from SEC.
     """
     ticker = state["ticker"]
-
-    if not ticker:
-        print(f"  [check_pinecone] No ticker found — routing to out_of_scope")
-        return {"data_status": "NO_TICKER"}
 
     if check_ticker_exists(ticker):
         print(f"  [check_pinecone] {ticker} found in Pinecone → retrieve")
@@ -648,9 +645,6 @@ def handle_comparison(state: AgentState) -> dict:
     tickers  = state.get("tickers") or []
     messages = state.get("messages") or []
 
-    if not tickers:
-        return handle_out_of_scope(state)
-
     # Collect market data for each ticker
     all_market_data = {}
     for t in tickers:
@@ -767,4 +761,47 @@ Generate a structured comparison report in markdown format:
     ]
 
     print(f"  [handle_comparison] Comparison report generated for {tickers}")
+    return {"answer": answer, "messages": updated_messages}
+
+
+
+
+# ─────────────────────────────────────────────
+# Node: Handle No Ticker
+# ─────────────────────────────────────────────
+def handle_no_ticker(state: AgentState) -> dict:
+    """
+    User asked a valid financial question but no ticker could be extracted.
+    Different from out_of_scope — the intent was valid, just no company identified.
+    """
+    messages = state.get("messages") or []
+    question = state["question"]
+    intent   = state.get("intent", "")
+
+    if intent == "COMPARISON":
+        answer = f"""I couldn't identify which companies you want to compare.
+
+Please name the companies specifically, for example:
+- "Compare Apple and Microsoft"
+- "Compare AAPL vs GOOGL"
+- "Tesla versus BMW" """
+    else:
+        answer = f"""I couldn't identify which company or stock you are asking about.
+
+Please name the company specifically, for example:
+- "Analyse Apple"
+- "What are NVIDIA's risks?"
+- "Tell me about Tesla" """
+
+    updated_messages = messages + [
+        {"role": "user",      "content": question},
+        {"role": "assistant", "content": answer},
+    ]
+
+    queue = token_queue_var.get()
+    if queue:
+        for word in re.findall(r'\S+|\s+', answer):
+            queue.put_nowait(word)
+            time.sleep(0.1)
+
     return {"answer": answer, "messages": updated_messages}

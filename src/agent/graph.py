@@ -14,6 +14,7 @@ from src.agent.nodes import (
     handle_greeting,
     handle_discovery,
     handle_comparison,
+    handle_no_ticker,
 )
 
 
@@ -30,25 +31,32 @@ def route_intent(state: AgentState) -> str:
     elif intent == "DISCOVERY":
         return "discovery"
     else:
-        return "extract"  # COMPARISON, SPECIFIC_STOCK, ANALYZE_POSITION, ANALYZE_PORTFOLIO all go through extract first
+        return "extract"  # COMPARISON, SPECIFIC_STOCK
 
 def route_after_extract(state: AgentState) -> str:
-    """Routes after Node 2 based on intent."""
+    """Routes after Node extract based on intent and ticker availability."""
     intent = state.get("intent", "")
+    ticker = state.get("ticker")
+    tickers = state.get("tickers") or []
+
+    if intent == "SPECIFIC_STOCK" and not ticker:
+        return "no_ticker"
+
+    if intent == "COMPARISON" and not tickers:
+        return "no_ticker"
+
     if intent == "COMPARISON":
         return "comparison"
-    else:
-        return "check_pinecone"
+
+    return "check_pinecone"
 
 def route_data_status(state: AgentState) -> str:
-    """Routes after Node 3 based on data_status."""
+    """Routes after Node check_pinecone based on data_status."""
     status = state.get("data_status", "")
     if status == "RETRIEVE":
         return "retrieve"
-    elif status == "FETCH_NEEDED":
+    if status == "FETCH_NEEDED":
         return "fetch"
-    else:
-        return "out_of_scope"  # NO_TICKER
 
 
 # ─────────────────────────────────────────────
@@ -71,11 +79,12 @@ def build_graph():
     graph.add_node("greeting",      handle_greeting)
     graph.add_node("discovery",     handle_discovery)
     graph.add_node("comparison",    handle_comparison)
+    graph.add_node("no_ticker",     handle_no_ticker) 
 
     # Entry point
     graph.set_entry_point("classify")
 
-    # Conditional edge after Node 1
+    # Conditional edge after Node classify_intent
     graph.add_conditional_edges(
         "classify",
         route_intent,
@@ -87,24 +96,24 @@ def build_graph():
         }
     )
 
-    # Conditional edge after Node 2
+    # Conditional edge after Node extract_parameters
     graph.add_conditional_edges(
         "extract",
         route_after_extract,
         {
-            "comparison":    "comparison",
+            "no_ticker":      "no_ticker",
+            "comparison":     "comparison",
             "check_pinecone": "check_pinecone",
         }
     )
 
-    # Conditional edge after Node 3
+    # Conditional edge after Node check_pinecone
     graph.add_conditional_edges(
         "check_pinecone",
         route_data_status,
         {
             "retrieve":    "retrieve",
             "fetch":       "fetch",
-            "out_of_scope": "out_of_scope",
         }
     )
 
@@ -122,6 +131,7 @@ def build_graph():
     graph.add_edge("greeting",     END)
     graph.add_edge("discovery",    END)
     graph.add_edge("comparison",   END)
+    graph.add_edge("no_ticker",    END) 
 
     return graph.compile()
 

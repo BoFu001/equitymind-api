@@ -124,6 +124,47 @@ def test_extract_parameters_tencent():
     assert result["ticker"] == "0700.HK"
 
 # ─────────────────────────────────────────────
+# Node: Intent Classification + Extract Parameters for Edge case tests: valid intent but no ticker
+# ─────────────────────────────────────────────
+
+def test_no_ticker_edge_cases():
+    """
+    Tests questions that may be classified as SPECIFIC_STOCK or COMPARISON
+    but have no extractable ticker. All should route to DISCOVERY or have no ticker.
+    """
+    edge_cases = [
+        "Analyse a tech company",
+        "Tell me about a good stock",
+        "What about that AI company?",
+        "Compare two tech companies",
+        "Compare them",
+        "Which is better, A or B?",
+    ]
+
+    for question in edge_cases:
+        # Step 1 — classify
+        classify_state = make_state(question=question)
+        classify_result = classify_intent(classify_state)
+        intent = classify_result["intent"]
+
+        # Step 2 — extract
+        extract_state = make_state(question=question, intent=intent)
+        extract_result = extract_parameters(extract_state)
+        ticker = extract_result.get("ticker")
+        tickers = extract_result.get("tickers", [])
+
+        print(f"\nQ: '{question}'")
+        print(f"  Intent: {intent}")
+        print(f"  Ticker: {ticker} | Tickers: {tickers}")
+
+        # Assert: if COMPARISON or SPECIFIC_STOCK — no ticker should be found
+        # These vague questions should either route to DISCOVERY or have no ticker
+        if intent == "COMPARISON":
+            assert not tickers, f"Expected no tickers for vague COMPARISON: '{question}' but got {tickers}"
+        if intent == "SPECIFIC_STOCK":
+            assert ticker is None, f"Expected no ticker for vague SPECIFIC_STOCK: '{question}' but got {ticker}"
+
+# ─────────────────────────────────────────────
 # Node: Check Pinecone
 # ─────────────────────────────────────────────
 
@@ -136,11 +177,6 @@ def test_check_pinecone_not_exists():
     state = make_state(ticker="FAKE123")
     result = check_pinecone(state)
     assert result["data_status"] == "FETCH_NEEDED"
-
-def test_check_pinecone_no_ticker():
-    state = make_state(ticker=None)
-    result = check_pinecone(state)
-    assert result["data_status"] == "NO_TICKER"
 
 
 # ─────────────────────────────────────────────
