@@ -31,32 +31,12 @@ from api.schemas import (
 )
 
 from config import APP_NAME
-from core.context import token_queue_var, sub_progress_queue_var
+from core.context import token_queue_var
 from src.agent.state import build_initial_state
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# ─────────────────────────────────────────────
-# Node name → human readable progress message
-# Must match node names registered in graph.py
-# ─────────────────────────────────────────────
-NODE_MESSAGES: dict[str, str] = {
-    "classify":      "Classifying intent...",
-    "extract":       "Extracting ticker and parameters...",
-    "check_pinecone":"Checking knowledge base...",
-    "retrieve":      "Retrieving SEC filing data...",
-    "fetch":         "Fetching SEC 10-K from EDGAR — this may take 60 seconds...",
-    "market_data":   "Loading market data and technical indicators...",
-    "news":          "Fetching news and running sentiment analysis...",
-    "report":        "Generating research report...",
-    "comparison":    "Running comparison analysis...",
-    "discovery":     "Finding investment recommendations...",
-    "greeting":      "Processing...",
-    "out_of_scope":  "Processing...",
-    "no_ticker":     "Processing...",
-}
 
 
 # ─────────────────────────────────────────────
@@ -98,10 +78,6 @@ async def query_stream(websocket: WebSocket):
         queue: asyncio.Queue = asyncio.Queue()
         token_queue_var.set(queue)
 
-        # ── Create sub-progress queue and set in context ──
-        sub_queue: asyncio.Queue = asyncio.Queue()
-        sub_progress_queue_var.set(sub_queue)
-
         # ── Import graph ──
         from src.agent.graph import build_graph
         graph = build_graph()
@@ -117,33 +93,36 @@ async def query_stream(websocket: WebSocket):
             """Runs the LangGraph graph, emits progress events, puts DONE when finished."""
             nonlocal final_state
             try:
-                async for event in graph.astream(initial_state, stream_mode="updates"):
-                    for node_name, state_update in event.items():
-                        final_state.update(state_update)
-                        message = NODE_MESSAGES.get(node_name)
-                        if message:
+                async for event in graph.astream(
+                    initial_state,
+                    stream_mode=["updates", "custom"]
+                ):
+                    kind, data = event
+
+                    if kind == "updates":
+                        for node_name, state_update in data.items():
+                            final_state.update(state_update)
+
+                    elif kind == "custom":
+                        event_type = data.get("type")
+                        if event_type == "progress":
                             await websocket.send_text(
                                 ProgressEvent(
-                                    node=node_name,
-                                    message=message,
+                                    node=data["node"],
+                                    message=data["message"],
                                 ).model_dump_json()
                             )
+                        elif event_type == "sub_progress":
+                            await websocket.send_text(
+                                SubProgressEvent(message=data["message"]).model_dump_json()
+                            )
+
             except Exception as e:
                 logger.exception("Graph error (job_id=%s)", job_id)
                 await queue.put(e)
             finally:
                 await queue.put(DONE)
-                await sub_queue.put(DONE)
 
-        async def stream_sub_progress():
-            """Reads sub-progress messages and sends to WebSocket until DONE."""
-            while True:
-                item = await sub_queue.get()
-                if item is DONE:
-                    break
-                await websocket.send_text(
-                    SubProgressEvent(message=item).model_dump_json()
-                )
 
 
 
@@ -164,7 +143,7 @@ async def query_stream(websocket: WebSocket):
                 )
 
         # ── Run graph, sub_progress and stream tokens concurrently ──
-        await asyncio.gather(run_graph(), stream_sub_progress(), stream_tokens())
+        await asyncio.gather(run_graph(), stream_tokens())
 
         # ── Send done event ──
         await websocket.send_text(

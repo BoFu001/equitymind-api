@@ -246,3 +246,20 @@ def test_websocket_specific_stock_streams_tokens():
     assert len(tokens) > 100
     assert done_event["ticker"] == "AAPL"
     assert done_event["intent"] == "SPECIFIC_STOCK"
+
+
+
+def test_websocket_discovery_has_sub_progress():
+    """Discovery query must receive sub_progress events."""
+    events = []
+    with client.websocket_connect("/api/v1/query/stream") as ws:
+        ws.send_text(json.dumps({"question": "find me a low risk stock"}))
+        while True:
+            message = ws.receive_text()
+            data = json.loads(message)
+            events.append(data)
+            if data["type"] in ("done", "error"):
+                break
+
+    sub_progress_events = [e for e in events if e["type"] == "sub_progress"]
+    assert len(sub_progress_events) >= 3

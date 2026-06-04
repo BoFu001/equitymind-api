@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch, MagicMock
 from src.agent.state import AgentState
 from src.agent.nodes import (
     classify_intent,
@@ -11,7 +12,16 @@ from src.agent.nodes import (
     handle_greeting,
     handle_discovery,
     handle_comparison,
+    handle_no_ticker,
 )
+
+@pytest.fixture(autouse=True)
+def mock_stream_writer():
+    with patch('src.agent.nodes.get_stream_writer') as mock:
+        mock.return_value = MagicMock()
+        yield
+
+
 
 
 # ─────────────────────────────────────────────
@@ -295,3 +305,27 @@ def test_handle_comparison():
     assert "AAPL" in result["answer"] or "Apple" in result["answer"]
     assert "MSFT" in result["answer"] or "Microsoft" in result["answer"]
     assert "messages" in result
+
+
+
+# ─────────────────────────────────────────────
+# Node: No Ticker
+# ─────────────────────────────────────────────
+
+def test_handle_no_ticker_specific_stock():
+    state = make_state(question="Analyse XYZ Corporation", intent="SPECIFIC_STOCK")
+    result = handle_no_ticker(state)
+    assert "answer" in result
+    assert len(result["answer"]) > 0
+    assert "company" in result["answer"].lower()
+    assert "messages" in result
+    assert len(result["messages"]) == 2
+
+def test_handle_no_ticker_comparison():
+    state = make_state(question="Compare them", intent="COMPARISON")
+    result = handle_no_ticker(state)
+    assert "answer" in result
+    assert len(result["answer"]) > 0
+    assert "compare" in result["answer"].lower()
+    assert "messages" in result
+    assert len(result["messages"]) == 2

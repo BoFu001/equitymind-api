@@ -1,7 +1,13 @@
 """
 core/context.py
 
-Token queue bridge for two-layer streaming.
+Token queue bridge for Layer 2 token streaming.
+
+Progress events (Layer 1) are now sent via LangGraph's get_stream_writer()
+from inside each node — no queue needed for progress.
+
+Token events (Layer 2) still use this queue — GPT-4o tokens are put
+into the queue by report nodes and consumed by stream_tokens() in query.py.
 
 Problem solved
 --------------
@@ -44,9 +50,4 @@ from contextvars import ContextVar
 # Default is None so nodes can safely call .get() and check before using.
 token_queue_var: ContextVar[asyncio.Queue | None] = ContextVar(
     "token_queue", default=None
-)
-
-
-sub_progress_queue_var: ContextVar[asyncio.Queue | None] = ContextVar(
-    "sub_progress_queue_var", default=None
 )

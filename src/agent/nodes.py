@@ -6,7 +6,8 @@ from datetime import datetime
 from openai import OpenAI
 
 from config import OPENAI_API_KEY, APP_NAME, LLM_MODEL
-from core.context import token_queue_var, sub_progress_queue_var
+from langgraph.config import get_stream_writer
+from core.context import token_queue_var
 from src.agent.state import AgentState
 from src.tools.market_data import get_stock_data
 from src.tools.news_sentiment import get_news_and_sentiment
@@ -25,6 +26,12 @@ def classify_intent(state: AgentState) -> dict:
     Classifies the user's question into one of seven categories.
     Uses LLM with a strict prompt — returns only the category name.
     """
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "classify", "message": "Classifying intent..."})
+
+
     question = state["question"]
 
     prompt = f"""You are {APP_NAME}'s intent classifier.
@@ -64,6 +71,13 @@ def extract_parameters(state: AgentState) -> dict:
     Extracts ticker(s) and year from the user's question.
     Returns primary ticker, list of all tickers, and year.
     """
+
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "extract", "message": "Extracting ticker and parameters..."})
+
+
     question = state["question"]
 
     prompt = f"""You are a financial data extractor.
@@ -119,6 +133,13 @@ def check_pinecone(state: AgentState) -> dict:
     If yes → route to retrieve.
     If no → route to fetch from SEC.
     """
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "check_pinecone", "message": "Checking knowledge base..."})
+
+
+
+
     ticker = state["ticker"]
 
     if check_ticker_exists(ticker):
@@ -134,6 +155,12 @@ def check_pinecone(state: AgentState) -> dict:
 # ─────────────────────────────────────────────
 def retrieve_chunks(state: AgentState) -> dict:
     """Retrieves relevant chunks from Pinecone."""
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "retrieve", "message": "Retrieving SEC filing data..."})
+
+
     chunks = retrieve(state["question"], state["ticker"])
     print(f"  [retrieve_chunks] Retrieved {len(chunks)} chunks for {state['ticker']}")
     return {"chunks": chunks}
@@ -144,6 +171,13 @@ def retrieve_chunks(state: AgentState) -> dict:
 # ─────────────────────────────────────────────
 def fetch_and_retrieve(state: AgentState) -> dict:
     """Dynamically fetches SEC filing, embeds, stores, then retrieves."""
+
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "fetch", "message": "Fetching SEC 10-K from EDGAR..."})
+
+
     chunks = fetch_embed_store_retrieve(state["question"], state["ticker"])
     print(f"  [fetch_and_retrieve] Retrieved {len(chunks)} chunks for {state['ticker']}")
     return {"chunks": chunks}
@@ -159,6 +193,12 @@ def get_market_data(state: AgentState) -> dict:
     """
     Fetches market data using the market_data tool.
     """
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "market_data", "message": "Loading market data and technical indicators..."})
+
+
     ticker = state["ticker"]
 
     if not ticker:
@@ -182,8 +222,13 @@ def get_news(state: AgentState) -> dict:
 
     NOTE: Currently using Finlight free tier (Launchpad plan).
     Free tier has 12-hour news delay and no real-time access.
-
     """
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "news", "message": "Fetching news and running sentiment analysis..."})
+
+
     ticker = state["ticker"]
 
     if not ticker:
@@ -205,6 +250,12 @@ def generate_report(state: AgentState) -> dict:
     Uses LLM with full context: SEC chunks, market data, news.
     Implements XAI by including evidence and sources.
     """
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "report", "message": "Generating research report..."})
+
+
     question    = state["question"]
     ticker      = state["ticker"]
     chunks      = state.get("chunks") or []
@@ -391,6 +442,13 @@ def handle_out_of_scope(state: AgentState) -> dict:
     """
     Returns a polite refusal for out-of-scope questions.
     """
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "out_of_scope", "message": "Processing..."})
+
+
+
     messages = state.get("messages") or []
     question = state["question"]
 
@@ -426,6 +484,10 @@ def handle_greeting(state: AgentState) -> dict:
     """
     Returns a friendly greeting and explains what this app can do.
     """
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "greeting", "message": "Processing..."})
+
     messages = state.get("messages") or []
     question = state["question"]
 
@@ -472,6 +534,12 @@ def handle_discovery(state: AgentState) -> dict:
     Step 2: Fetch real market data and SEC chunks for each candidate.
     Step 3: LLM ranks and recommends top 3 based on real data.
     """
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "discovery", "message": "Finding investment recommendations..."})
+
+
     question = state["question"]
     messages = state.get("messages") or []
 
@@ -525,22 +593,19 @@ Please try:
 
     print(f"  [handle_discovery] Step 1 — Candidates: {candidate_tickers}")
 
-    sub_queue = sub_progress_queue_var.get()
-    if sub_queue:
-        sub_queue.put_nowait(f"Identified candidates: {', '.join(candidate_tickers)}")
-        sub_queue.put_nowait("Fetching live market data for all candidates...")
+    writer({"type": "sub_progress", "message": f"Identified candidates: {', '.join(candidate_tickers)}"})
 
 
     # ── Step 2: Fetch real data for each candidate ──
+    writer({"type": "sub_progress", "message": "Fetching live market data for all candidates..."})
     all_market_data = {}
     for t in candidate_tickers:
         data = get_stock_data(t)
         if data:
             all_market_data[t] = data
 
-    if sub_queue:
-        sub_queue.put_nowait("Retrieving SEC filings...")
-        
+    writer({"type": "sub_progress", "message": "Retrieving SEC filings..."})
+
     all_chunks = {}
     for t in candidate_tickers:
         try:
@@ -574,8 +639,7 @@ Please try:
                 sec_context += chunk.get("text", "")[:300] + "\n"
 
     # ── Step 4: LLM ranks and recommends top 3 ──
-    if sub_queue:
-        sub_queue.put_nowait("Analysing and ranking top 3 recommendations...")
+    writer({"type": "sub_progress", "message": "Analysing and ranking top 3 recommendations..."})
         
     prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
 The user wants investment recommendations. You have real market data and SEC filing data
@@ -655,6 +719,13 @@ def handle_comparison(state: AgentState) -> dict:
     Handles comparison questions between two or more companies.
     Retrieves market data and SEC chunks for each ticker.
     """
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "comparison", "message": "Running comparison analysis..."})
+
+
+
     question = state["question"]
     tickers  = state.get("tickers") or []
     messages = state.get("messages") or []
@@ -788,6 +859,13 @@ def handle_no_ticker(state: AgentState) -> dict:
     User asked a valid financial question but no ticker could be extracted.
     Different from out_of_scope — the intent was valid, just no company identified.
     """
+
+
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "no_ticker", "message": "Processing..."})
+
+
+    
     messages = state.get("messages") or []
     question = state["question"]
     intent   = state.get("intent", "")
