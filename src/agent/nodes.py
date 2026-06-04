@@ -16,6 +16,25 @@ from src.vectorstore.pinecone_store import check_ticker_exists
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+# ─────────────────────────────────────────────
+# Node progress messages — user-friendly UX language
+# ─────────────────────────────────────────────
+NODE_PROGRESS = {
+    "classify":       "Understanding your question...",
+    "extract":        "Identifying the company...",
+    "check_pinecone": "Checking our knowledge base...",
+    "retrieve":       "Reading the annual report...",
+    "fetch":          "Downloading the annual report from SEC...",
+    "market_data":    "Checking live market data...",
+    "news":           "Reading the latest news...",
+    "report":         "Writing your investment report...",
+    "comparison":     "Comparing the companies...",
+    "discovery":      "Searching for the best stocks for you...",
+    "greeting":       "Welcome! Preparing your response...",
+    "out_of_scope":   "Let me help you with that...",
+    "no_ticker":      "Almost there, checking your request...",
+}
+
 
 # ─────────────────────────────────────────────
 # Node: Intent Classification
@@ -29,8 +48,7 @@ def classify_intent(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "classify", "message": "Classifying intent..."})
-
+    writer({"type": "progress", "node": "classify", "message": NODE_PROGRESS["classify"]})
 
     question = state["question"]
 
@@ -75,7 +93,7 @@ def extract_parameters(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "extract", "message": "Extracting ticker and parameters..."})
+    writer({"type": "progress", "node": "extract", "message": NODE_PROGRESS["extract"]})
 
 
     question = state["question"]
@@ -135,7 +153,7 @@ def check_pinecone(state: AgentState) -> dict:
     """
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "check_pinecone", "message": "Checking knowledge base..."})
+    writer({"type": "progress", "node": "check_pinecone", "message": NODE_PROGRESS["check_pinecone"]})
 
 
 
@@ -158,7 +176,7 @@ def retrieve_chunks(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "retrieve", "message": "Retrieving SEC filing data..."})
+    writer({"type": "progress", "node": "retrieve", "message": NODE_PROGRESS["retrieve"]})
 
 
     chunks = retrieve(state["question"], state["ticker"])
@@ -175,7 +193,7 @@ def fetch_and_retrieve(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "fetch", "message": "Fetching SEC 10-K from EDGAR..."})
+    writer({"type": "progress", "node": "fetch", "message": NODE_PROGRESS["fetch"]})
 
 
     chunks = fetch_embed_store_retrieve(state["question"], state["ticker"])
@@ -196,7 +214,7 @@ def get_market_data(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "market_data", "message": "Loading market data and technical indicators..."})
+    writer({"type": "progress", "node": "market_data", "message": NODE_PROGRESS["market_data"]})
 
 
     ticker = state["ticker"]
@@ -226,7 +244,7 @@ def get_news(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "news", "message": "Fetching news and running sentiment analysis..."})
+    writer({"type": "progress", "node": "news", "message": NODE_PROGRESS["news"]})
 
 
     ticker = state["ticker"]
@@ -253,7 +271,7 @@ def generate_report(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "report", "message": "Generating research report..."})
+    writer({"type": "progress", "node": "report", "message": NODE_PROGRESS["report"]})
 
 
     question    = state["question"]
@@ -316,6 +334,8 @@ IMPORTANT RULES:
 4. Be specific with numbers — never vague.
 5. Always include the disclaimer at the end.
 6. Use markdown formatting with emojis for visual clarity.
+7. Format large numbers cleanly — use $24.5B not $24,452,999,168. Use $7.5B not $7,506,999,808.
+8. Round decimal numbers to 2 decimal places — use 15.10 not 15.105477.
 
 USER QUESTION: {question}
 TICKER: {ticker}
@@ -445,7 +465,7 @@ def handle_out_of_scope(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "out_of_scope", "message": "Processing..."})
+    writer({"type": "progress", "node": "out_of_scope", "message": NODE_PROGRESS["out_of_scope"]})
 
 
 
@@ -486,7 +506,7 @@ def handle_greeting(state: AgentState) -> dict:
     """
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "greeting", "message": "Processing..."})
+    writer({"type": "progress", "node": "greeting", "message": NODE_PROGRESS["greeting"]})
 
     messages = state.get("messages") or []
     question = state["question"]
@@ -537,7 +557,7 @@ def handle_discovery(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "discovery", "message": "Finding investment recommendations..."})
+    writer({"type": "progress", "node": "discovery", "message": NODE_PROGRESS["discovery"]})
 
 
     question = state["question"]
@@ -593,18 +613,14 @@ Please try:
 
     print(f"  [handle_discovery] Step 1 — Candidates: {candidate_tickers}")
 
-    writer({"type": "sub_progress", "message": f"Identified candidates: {', '.join(candidate_tickers)}"})
-
 
     # ── Step 2: Fetch real data for each candidate ──
-    writer({"type": "sub_progress", "message": "Fetching live market data for all candidates..."})
     all_market_data = {}
     for t in candidate_tickers:
         data = get_stock_data(t)
         if data:
             all_market_data[t] = data
 
-    writer({"type": "sub_progress", "message": "Retrieving SEC filings..."})
 
     all_chunks = {}
     for t in candidate_tickers:
@@ -639,11 +655,19 @@ Please try:
                 sec_context += chunk.get("text", "")[:300] + "\n"
 
     # ── Step 4: LLM ranks and recommends top 3 ──
-    writer({"type": "sub_progress", "message": "Analysing and ranking top 3 recommendations..."})
         
     prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
 The user wants investment recommendations. You have real market data and SEC filing data
 for 5 candidate companies. Use this real data to rank and recommend the top 3.
+
+
+
+IMPORTANT RULES:
+- Format large numbers cleanly — use $24.5B not $24,452,999,168.
+- Round decimal numbers to 2 decimal places — use 15.10 not 15.105477.
+
+
+
 
 USER QUESTION: {question}
 DATE: {datetime.now().strftime('%B %d, %Y')}
@@ -722,8 +746,7 @@ def handle_comparison(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "comparison", "message": "Running comparison analysis..."})
-
+    writer({"type": "progress", "node": "comparison", "message": NODE_PROGRESS["comparison"]})
 
 
     question = state["question"]
@@ -766,6 +789,11 @@ def handle_comparison(state: AgentState) -> dict:
 
     prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
 Generate a detailed comparison report between these companies.
+
+IMPORTANT RULES:
+- Format large numbers cleanly — use $24.5B not $24,452,999,168.
+- Round decimal numbers to 2 decimal places — use 15.10 not 15.105477.
+
 
 USER QUESTION: {question}
 COMPANIES: {', '.join(tickers)}
@@ -862,7 +890,7 @@ def handle_no_ticker(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "no_ticker", "message": "Processing..."})
+    writer({"type": "progress", "node": "no_ticker", "message": NODE_PROGRESS["no_ticker"]})
 
 
     
