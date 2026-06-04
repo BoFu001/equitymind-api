@@ -43,6 +43,9 @@ async def test():
             elif event_type == "progress":
                 print(f"[progress]   node={data.get('node')} | {data.get('message')}")
 
+            elif event_type == "sub_progress":
+                print(f"  ↳ {data.get('message')}")
+                
             elif event_type == "token":
                 token_count += 1
                 answer += data.get("text", "")

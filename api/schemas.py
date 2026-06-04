@@ -97,6 +97,9 @@ class ProgressEvent(BaseModel):
     node: str = Field(description="LangGraph node name that just started executing.")
     message: str = Field(description="Human-readable status message for the UI.")
 
+class SubProgressEvent(BaseModel):
+    type: Literal["sub_progress"] = "sub_progress"
+    message: str
 
 class TokenEvent(BaseModel):
     """
@@ -150,7 +153,7 @@ class ErrorEvent(BaseModel):
 
 # Union type for all outbound WebSocket events.
 # Used in query.py to ensure every send() call is typed correctly.
-WebSocketEvent = ConnectedEvent | ProgressEvent | TokenEvent | DoneEvent | ErrorEvent
+WebSocketEvent = ConnectedEvent | ProgressEvent | SubProgressEvent | TokenEvent | DoneEvent | ErrorEvent
 
 
 # ─────────────────────────────────────────────────────────────────────────────

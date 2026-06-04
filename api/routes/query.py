@@ -20,6 +20,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from api.schemas import (
     ConnectedEvent,
     ProgressEvent,
+    SubProgressEvent,
     TokenEvent,
     DoneEvent,
     ErrorEvent,
@@ -30,7 +31,7 @@ from api.schemas import (
 )
 
 from config import APP_NAME
-from core.context import token_queue_var
+from core.context import token_queue_var, sub_progress_queue_var
 from src.agent.state import build_initial_state
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,10 @@ async def query_stream(websocket: WebSocket):
         queue: asyncio.Queue = asyncio.Queue()
         token_queue_var.set(queue)
 
+        # ── Create sub-progress queue and set in context ──
+        sub_queue: asyncio.Queue = asyncio.Queue()
+        sub_progress_queue_var.set(sub_queue)
+
         # ── Import graph ──
         from src.agent.graph import build_graph
         graph = build_graph()
@@ -128,6 +133,19 @@ async def query_stream(websocket: WebSocket):
                 await queue.put(e)
             finally:
                 await queue.put(DONE)
+                await sub_queue.put(DONE)
+
+        async def stream_sub_progress():
+            """Reads sub-progress messages and sends to WebSocket until DONE."""
+            while True:
+                item = await sub_queue.get()
+                if item is DONE:
+                    break
+                await websocket.send_text(
+                    SubProgressEvent(message=item).model_dump_json()
+                )
+
+
 
         async def stream_tokens():
             """Reads tokens from queue and sends to WebSocket until DONE."""
@@ -145,8 +163,8 @@ async def query_stream(websocket: WebSocket):
                     TokenEvent(text=item).model_dump_json()
                 )
 
-        # ── Run graph and stream tokens concurrently ──
-        await asyncio.gather(run_graph(), stream_tokens())
+        # ── Run graph, sub_progress and stream tokens concurrently ──
+        await asyncio.gather(run_graph(), stream_sub_progress(), stream_tokens())
 
         # ── Send done event ──
         await websocket.send_text(

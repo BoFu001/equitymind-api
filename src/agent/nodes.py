@@ -6,7 +6,7 @@ from datetime import datetime
 from openai import OpenAI
 
 from config import OPENAI_API_KEY, APP_NAME, LLM_MODEL
-from core.context import token_queue_var
+from core.context import token_queue_var, sub_progress_queue_var
 from src.agent.state import AgentState
 from src.tools.market_data import get_stock_data
 from src.tools.news_sentiment import get_news_and_sentiment
@@ -414,6 +414,7 @@ What stock would you like me to research?"""
     if queue:
         for word in re.findall(r'\S+|\s+', answer):
             queue.put_nowait(word)
+            time.sleep(0.03)
 
     return {"answer": answer, "messages": updated_messages}
 
@@ -453,6 +454,7 @@ What would you like to research today?"""
     if queue:
         for word in re.findall(r'\S+|\s+', answer):
             queue.put_nowait(word)
+            time.sleep(0.03)
 
     return {"answer": answer, "messages": updated_messages}
 
@@ -523,6 +525,12 @@ Please try:
 
     print(f"  [handle_discovery] Step 1 — Candidates: {candidate_tickers}")
 
+    sub_queue = sub_progress_queue_var.get()
+    if sub_queue:
+        sub_queue.put_nowait(f"Identified candidates: {', '.join(candidate_tickers)}")
+        sub_queue.put_nowait("Fetching live market data for all candidates...")
+
+
     # ── Step 2: Fetch real data for each candidate ──
     all_market_data = {}
     for t in candidate_tickers:
@@ -530,6 +538,9 @@ Please try:
         if data:
             all_market_data[t] = data
 
+    if sub_queue:
+        sub_queue.put_nowait("Retrieving SEC filings...")
+        
     all_chunks = {}
     for t in candidate_tickers:
         try:
@@ -563,6 +574,9 @@ Please try:
                 sec_context += chunk.get("text", "")[:300] + "\n"
 
     # ── Step 4: LLM ranks and recommends top 3 ──
+    if sub_queue:
+        sub_queue.put_nowait("Analysing and ranking top 3 recommendations...")
+        
     prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
 The user wants investment recommendations. You have real market data and SEC filing data
 for 5 candidate companies. Use this real data to rank and recommend the top 3.
@@ -802,6 +816,6 @@ Please name the company specifically, for example:
     if queue:
         for word in re.findall(r'\S+|\s+', answer):
             queue.put_nowait(word)
-            time.sleep(0.1)
+            time.sleep(0.03)
 
     return {"answer": answer, "messages": updated_messages}

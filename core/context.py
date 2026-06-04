@@ -45,3 +45,8 @@ from contextvars import ContextVar
 token_queue_var: ContextVar[asyncio.Queue | None] = ContextVar(
     "token_queue", default=None
 )
+
+
+sub_progress_queue_var: ContextVar[asyncio.Queue | None] = ContextVar(
+    "sub_progress_queue_var", default=None
+)
