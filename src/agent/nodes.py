@@ -140,70 +140,30 @@ Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example
     return {"tickers": tickers, "year": year}
 
 
-
 # ─────────────────────────────────────────────
-# Node: Check Pinecone
+# Node: Retrieve SEC Data
 # ─────────────────────────────────────────────
-def check_pinecone(state: AgentState) -> dict:
+def retrieve_sec_data(state: AgentState) -> dict:
     """
-    Checks if the ticker's data already exists in Pinecone.
-    If yes → route to retrieve.
-    If no → route to fetch from SEC.
+    Single responsibility: get SEC chunks for one ticker.
+    Replaces: check_pinecone + retrieve_chunks + fetch_and_retrieve
+    Checks Pinecone first — fetches from SEC if not found.
     """
-
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "check_pinecone", "message": NODE_PROGRESS["check_pinecone"]})
 
-
-
-
-    ticker = (state.get("tickers") or [None])[0]
+    ticker   = (state.get("tickers") or [None])[0]
+    question = state["question"]
 
     if check_ticker_exists(ticker):
-        print(f"  [check_pinecone] {ticker} found in Pinecone → retrieve")
-        return {"data_status": "RETRIEVE"}
+        writer({"type": "progress", "node": "retrieve", "message": NODE_PROGRESS["retrieve"]})
+        chunks = retrieve(question, ticker)
+        print(f"  [retrieve_sec_data] Retrieved {len(chunks)} chunks for {ticker}")
     else:
-        print(f"  [check_pinecone] {ticker} not found in Pinecone → fetch from SEC")
-        return {"data_status": "FETCH_NEEDED"}
+        writer({"type": "progress", "node": "fetch", "message": NODE_PROGRESS["fetch"]})
+        chunks = fetch_embed_store_retrieve(question, ticker)
+        print(f"  [retrieve_sec_data] Fetched {len(chunks)} chunks for {ticker}")
 
-
-# ─────────────────────────────────────────────
-# Node: Retrieve Chunks from Pinecone
-# ─────────────────────────────────────────────
-def retrieve_chunks(state: AgentState) -> dict:
-    """Retrieves relevant chunks from Pinecone."""
-
-
-    writer = get_stream_writer()
-    writer({"type": "progress", "node": "retrieve", "message": NODE_PROGRESS["retrieve"]})
-
-
-    ticker = (state.get("tickers") or [None])[0]
-    chunks = retrieve(state["question"], ticker)
-    print(f"  [retrieve_chunks] Retrieved {len(chunks)} chunks for {ticker}")
     return {"chunks": chunks}
-
-
-# ─────────────────────────────────────────────
-# Node: Fetch from SEC, Embed, Store, Retrieve
-# ─────────────────────────────────────────────
-def fetch_and_retrieve(state: AgentState) -> dict:
-    """Dynamically fetches SEC filing, embeds, stores, then retrieves."""
-
-
-
-    writer = get_stream_writer()
-    writer({"type": "progress", "node": "fetch", "message": NODE_PROGRESS["fetch"]})
-
-
-    ticker = (state.get("tickers") or [None])[0]
-    chunks = fetch_embed_store_retrieve(state["question"], ticker)
-    print(f"  [fetch_and_retrieve] Retrieved {len(chunks)} chunks for {ticker}")
-    return {"chunks": chunks}
-
-
-
-
 
 # ─────────────────────────────────────────────
 # Node: Get Market Data

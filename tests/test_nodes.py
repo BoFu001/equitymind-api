@@ -4,8 +4,7 @@ from src.agent.state import AgentState
 from src.agent.nodes import (
     classify_intent,
     extract_parameters,
-    check_pinecone,
-    retrieve_chunks,
+    retrieve_sec_data,
     get_market_data,
     get_news,
     handle_out_of_scope,
@@ -171,35 +170,31 @@ def test_no_ticker_edge_cases():
             assert not tickers, f"Expected no tickers for vague SPECIFIC_STOCK: '{question}' but got {tickers}"
 
 # ─────────────────────────────────────────────
-# Node: Check Pinecone
+# Node: Retrieve SEC Data
 # ─────────────────────────────────────────────
 
-def test_check_pinecone_exists():
-    state = make_state(tickers=["AAPL"])
-    result = check_pinecone(state)
-    assert result["data_status"] == "RETRIEVE"
-
-def test_check_pinecone_not_exists():
-    state = make_state(tickers=["FAKE123"])
-    result = check_pinecone(state)
-    assert result["data_status"] == "FETCH_NEEDED"
-
-
-# ─────────────────────────────────────────────
-# Node: Retrieve Chunks
-# ─────────────────────────────────────────────
-
-def test_retrieve_chunks_aapl():
+def test_retrieve_sec_data_existing_ticker():
+    """AAPL exists in Pinecone — should retrieve chunks."""
     state = make_state(
         question="What are Apple's biggest risks?",
         tickers=["AAPL"]
     )
-    result = retrieve_chunks(state)
+    result = retrieve_sec_data(state)
     assert "chunks" in result
     assert len(result["chunks"]) > 0
     assert "text" in result["chunks"][0]
     assert "score" in result["chunks"][0]
     assert "source" in result["chunks"][0]
+
+def test_retrieve_sec_data_unknown_ticker():
+    """FAKE123 does not exist — should fetch from SEC (returns empty)."""
+    state = make_state(
+        question="What are the risks?",
+        tickers=["FAKE123"]
+    )
+    result = retrieve_sec_data(state)
+    assert "chunks" in result
+    assert isinstance(result["chunks"], list)
 
 
 # ─────────────────────────────────────────────

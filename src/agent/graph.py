@@ -4,9 +4,7 @@ from src.agent.state import AgentState
 from src.agent.nodes import (
     classify_intent,
     extract_parameters,
-    check_pinecone,
-    retrieve_chunks,
-    fetch_and_retrieve,
+    retrieve_sec_data,
     get_market_data,
     get_news,
     generate_report,
@@ -42,7 +40,7 @@ def route_after_extract(state: AgentState) -> str:
         return "no_ticker"
     if intent == "COMPARISON":
         return "comparison"
-    return "check_pinecone"
+    return "retrieve_sec"
 
 def route_data_status(state: AgentState) -> str:
     """Routes after Node check_pinecone based on data_status."""
@@ -63,9 +61,7 @@ def build_graph():
     # Add all nodes
     graph.add_node("classify",      classify_intent)
     graph.add_node("extract",       extract_parameters)
-    graph.add_node("check_pinecone", check_pinecone)
-    graph.add_node("retrieve",      retrieve_chunks)
-    graph.add_node("fetch",         fetch_and_retrieve)
+    graph.add_node("retrieve_sec",  retrieve_sec_data)
     graph.add_node("market_data",   get_market_data)
     graph.add_node("news",          get_news)
     graph.add_node("report",        generate_report)
@@ -97,23 +93,11 @@ def build_graph():
         {
             "no_ticker":      "no_ticker",
             "comparison":     "comparison",
-            "check_pinecone": "check_pinecone",
+            "retrieve_sec":   "retrieve_sec",
         }
     )
 
-    # Conditional edge after Node check_pinecone
-    graph.add_conditional_edges(
-        "check_pinecone",
-        route_data_status,
-        {
-            "retrieve":    "retrieve",
-            "fetch":       "fetch",
-        }
-    )
-
-    # Both retrieve and fetch lead to market_data
-    graph.add_edge("retrieve",   "market_data")
-    graph.add_edge("fetch",      "market_data")
+    graph.add_edge("retrieve_sec", "market_data")
 
     # Linear flow after market_data
     graph.add_edge("market_data", "news")
