@@ -7,10 +7,10 @@ from src.agent.nodes import (
     retrieve_sec_data,
     get_market_data,
     get_news,
-    generate_report,
+    specific_report,
     handle_out_of_scope,
     handle_greeting,
-    handle_comparison,
+    comparison_report,
     handle_no_ticker,
     discovery_suggest,
     discovery_report,
@@ -39,16 +39,17 @@ def route_after_extract(state: AgentState) -> str:
 
     if not tickers:
         return "no_ticker"
-    if intent == "COMPARISON":
-        return "comparison"
-    return "retrieve_sec"
+    else:
+        return "retrieve_sec"
 
 def route_after_news(state: AgentState) -> str:
     intent = state.get("intent", "")
     if intent == "DISCOVERY":
         return "discovery_report"
+    elif intent == "COMPARISON":
+        return "comparison_report"
     else:
-        return "report"
+        return "specific_report"
     
 # ─────────────────────────────────────────────
 # Build the graph
@@ -63,12 +64,12 @@ def build_graph():
     graph.add_node("retrieve_sec",      retrieve_sec_data)
     graph.add_node("market_data",       get_market_data)
     graph.add_node("news",              get_news)
-    graph.add_node("report",            generate_report)
+    graph.add_node("specific_report",   specific_report)
     graph.add_node("out_of_scope",      handle_out_of_scope)
     graph.add_node("greeting",          handle_greeting)
     graph.add_node("discovery_suggest", discovery_suggest)
     graph.add_node("discovery_report",  discovery_report)
-    graph.add_node("comparison",        handle_comparison)
+    graph.add_node("comparison_report", comparison_report)
     graph.add_node("no_ticker",         handle_no_ticker) 
 
     # Entry point
@@ -92,7 +93,6 @@ def build_graph():
         route_after_extract,
         {
             "no_ticker":      "no_ticker",
-            "comparison":     "comparison",
             "retrieve_sec":   "retrieve_sec",
         }
     )
@@ -101,23 +101,24 @@ def build_graph():
         "news",
         route_after_news,
         {
-            "report":           "report",
-            "discovery_report": "discovery_report",
+            "specific_report":     "specific_report",
+            "discovery_report":    "discovery_report",
+            "comparison_report":   "comparison_report",
         }
     )
 
     # Linear flow after market_data
-    graph.add_edge("discovery_suggest", "retrieve_sec")
-    graph.add_edge("retrieve_sec",      "market_data")
-    graph.add_edge("market_data",       "news")
+    graph.add_edge("discovery_suggest",   "retrieve_sec")
+    graph.add_edge("retrieve_sec",        "market_data")
+    graph.add_edge("market_data",         "news")
 
     # End nodes
-    graph.add_edge("report",            END)
-    graph.add_edge("discovery_report",  END)
-    graph.add_edge("out_of_scope",      END)
-    graph.add_edge("greeting",          END)
-    graph.add_edge("comparison",        END)
-    graph.add_edge("no_ticker",         END) 
+    graph.add_edge("specific_report",     END)
+    graph.add_edge("discovery_report",    END)
+    graph.add_edge("comparison_report",   END)
+    graph.add_edge("out_of_scope",        END)
+    graph.add_edge("greeting",            END)
+    graph.add_edge("no_ticker",           END) 
 
     return graph.compile()
 

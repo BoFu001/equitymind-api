@@ -26,7 +26,7 @@ NODE_PROGRESS = {
     "fetch":            "Downloading the annual report from SEC...",
     "market_data":      "Checking live market data...",
     "news":             "Reading the latest news...",
-    "report":           "Writing your investment report...",
+    "specific_report":  "Writing your investment report...",
     "comparison":       "Comparing the companies...",
     "discovery":        "Searching for the best stocks for you...",
     "discovery_report": "Writing your discovery report...",
@@ -226,7 +226,7 @@ def get_news(state: AgentState) -> dict:
 # ─────────────────────────────────────────────
 # Node: Generate Report
 # ─────────────────────────────────────────────
-def generate_report(state: AgentState) -> dict:
+def specific_report(state: AgentState) -> dict:
     """
     Combines all data and generates a structured investment report.
     Uses LLM with full context: SEC chunks, market data, news.
@@ -235,7 +235,7 @@ def generate_report(state: AgentState) -> dict:
 
 
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "report", "message": NODE_PROGRESS["report"]})
+    writer({"type": "progress", "node": "report", "message": NODE_PROGRESS["specific_report"]})
 
 
     question    = state["question"]
@@ -683,48 +683,28 @@ Ask me for a detailed analysis of any of these companies.
     return {"answer": answer, "messages": updated_messages}
 
 
-
-
-
-
-
 # ─────────────────────────────────────────────
-# Node: Handle Comparison
+# Node: Comparison Report
 # ─────────────────────────────────────────────
-def handle_comparison(state: AgentState) -> dict:
+def comparison_report(state: AgentState) -> dict:
     """
-    Handles comparison questions between two or more companies.
-    Retrieves market data and SEC chunks for each ticker.
+    Single responsibility: format real data and generate comparison report.
+    Reads chunks, market_data, news from state — all populated by upstream nodes.
     """
-
-
     writer = get_stream_writer()
     writer({"type": "progress", "node": "comparison", "message": NODE_PROGRESS["comparison"]})
 
+    question   = state["question"]
+    tickers    = state.get("tickers") or []
+    messages   = state.get("messages") or []
+    all_chunks = state.get("chunks") or {}
+    all_market = state.get("market_data") or {}
+    all_news   = state.get("news") or {}
 
-    question = state["question"]
-    tickers  = state.get("tickers") or []
-    messages = state.get("messages") or []
-
-    # Collect market data for each ticker
-    all_market_data = {}
-    for t in tickers:
-        data = get_stock_data(t)
-        if data:
-            all_market_data[t] = data
-
-    # Collect SEC chunks for each ticker
-    all_chunks = {}
-    for t in tickers:
-        if check_ticker_exists(t):
-            chunks = retrieve(question, t, top_k=3)
-        else:
-            chunks = fetch_embed_store_retrieve(question, t, top_k=3)
-        all_chunks[t] = chunks
-
-    # Format market data for prompt
+    # ── Format market data ──
     market_context = ""
-    for t, md in all_market_data.items():
+    for t in tickers:
+        md = all_market.get(t, {})
         market_context += f"\n{t}:\n"
         market_context += f"  Company: {md.get('company_name')}\n"
         market_context += f"  Price: ${md.get('current_price')} | P/E: {md.get('pe_ratio')} | Forward P/E: {md.get('forward_pe')}\n"
@@ -733,12 +713,25 @@ def handle_comparison(state: AgentState) -> dict:
         market_context += f"  Analyst Target Mean: ${md.get('target_mean')} | Recommendation: {md.get('recommendation')}\n"
         market_context += f"  EPS: {md.get('eps_trailing')} | Dividend Yield: {md.get('dividend_yield')}\n"
 
-    # Format SEC chunks for prompt
+    # ── Format SEC chunks ──
     sec_context = ""
-    for t, chunks in all_chunks.items():
+    for t in tickers:
+        chunks = all_chunks.get(t, [])
         sec_context += f"\n{t} SEC Filing:\n"
-        for chunk in chunks:
-            sec_context += chunk.get("text", "")[:300] + "\n"
+        if not chunks:
+            sec_context += "  No SEC 10-K data available.\n"
+        else:
+            for chunk in chunks:
+                sec_context += chunk.get("text", "")[:300] + "\n"
+
+    # ── Format news ──
+    news_context = ""
+    for t in tickers:
+        articles = all_news.get(t, [])
+        if articles:
+            news_context += f"\n{t} News:\n"
+            for article in articles[:3]:
+                news_context += f"  [{article.get('sentiment','').upper()}] {article.get('title','')} ({article.get('score',0):.2f})\n"
 
     prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
 Generate a detailed comparison report between these companies.
@@ -746,7 +739,6 @@ Generate a detailed comparison report between these companies.
 IMPORTANT RULES:
 - Format large numbers cleanly — use $24.5B not $24,452,999,168.
 - Round decimal numbers to 2 decimal places — use 15.10 not 15.105477.
-
 
 USER QUESTION: {question}
 COMPANIES: {', '.join(tickers)}
@@ -757,6 +749,9 @@ MARKET DATA:
 
 SEC FILING EXCERPTS:
 {sec_context}
+
+NEWS & SENTIMENT (last 30 days):
+{news_context}
 
 Generate a structured comparison report in markdown format:
 
@@ -789,6 +784,11 @@ Generate a structured comparison report in markdown format:
 
 ---
 
+## 📰 News Sentiment
+[For each company — 1-2 key headlines with sentiment and score]
+
+---
+
 ## ⚠️ Key Risks
 [Main risks for each company from SEC filings]
 
@@ -798,13 +798,14 @@ Generate a structured comparison report in markdown format:
 **Data sources used:**
 - Market data: yfinance
 - SEC filings: {', '.join([f'{t}_10-K' for t in tickers])}
+- News sentiment: Finlight + FinBERT
 
 ---
 
 ## ⚠️ Disclaimer
 *This report is AI-generated for educational purposes only. Not financial advice.*"""
 
-    queue = token_queue_var.get()
+    queue  = token_queue_var.get()
     answer = ""
 
     response = client.chat.completions.create(
@@ -826,10 +827,8 @@ Generate a structured comparison report in markdown format:
         {"role": "assistant", "content": answer},
     ]
 
-    print(f"  [handle_comparison] Comparison report generated for {tickers}")
+    print(f"  [comparison_report] Comparison report generated for {tickers}")
     return {"answer": answer, "messages": updated_messages}
-
-
 
 # ─────────────────────────────────────────────
 # Node: Handle No Ticker

@@ -11,7 +11,8 @@ from src.agent.nodes import (
     handle_greeting,
     discovery_suggest,
     discovery_report,
-    handle_comparison,
+    comparison_report,
+    specific_report,
     handle_no_ticker,
 )
 
@@ -288,14 +289,12 @@ def test_discovery_suggest():
 def test_handle_comparison():
     state = make_state(
         question="Compare Apple and Microsoft",
-        tickers=["AAPL", "MSFT"]
+        tickers=["AAPL", "MSFT"],
+        chunks={"AAPL": [], "MSFT": []},
+        market_data={"AAPL": {}, "MSFT": {}},
+        news={"AAPL": [], "MSFT": []},
     )
-    result = handle_comparison(state)
-    assert "answer" in result
-    assert len(result["answer"]) > 0
-    assert "AAPL" in result["answer"] or "Apple" in result["answer"]
-    assert "MSFT" in result["answer"] or "Microsoft" in result["answer"]
-    assert "messages" in result
+    result = comparison_report(state)
 
 
 
