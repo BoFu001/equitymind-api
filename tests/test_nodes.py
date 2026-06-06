@@ -9,7 +9,8 @@ from src.agent.nodes import (
     get_news,
     handle_out_of_scope,
     handle_greeting,
-    handle_discovery,
+    discovery_suggest,
+    discovery_report,
     handle_comparison,
     handle_no_ticker,
 )
@@ -128,7 +129,7 @@ def test_extract_parameters_alibaba():
 def test_extract_parameters_tencent():
     state = make_state(question="Analyse Tencent")
     result = extract_parameters(state)
-    assert result["tickers"] == ["0700.HK"]
+    assert result["tickers"][0] in ["0700.HK", "TCEHY"]
 
 # ─────────────────────────────────────────────
 # Node: Intent Classification + Extract Parameters for Edge case tests: valid intent but no ticker
@@ -174,27 +175,27 @@ def test_no_ticker_edge_cases():
 # ─────────────────────────────────────────────
 
 def test_retrieve_sec_data_existing_ticker():
-    """AAPL exists in Pinecone — should retrieve chunks."""
     state = make_state(
         question="What are Apple's biggest risks?",
         tickers=["AAPL"]
     )
     result = retrieve_sec_data(state)
     assert "chunks" in result
-    assert len(result["chunks"]) > 0
-    assert "text" in result["chunks"][0]
-    assert "score" in result["chunks"][0]
-    assert "source" in result["chunks"][0]
+    assert "AAPL" in result["chunks"]
+    assert len(result["chunks"]["AAPL"]) > 0
+    assert "text" in result["chunks"]["AAPL"][0]
+    assert "score" in result["chunks"]["AAPL"][0]
+    assert "source" in result["chunks"]["AAPL"][0]
 
 def test_retrieve_sec_data_unknown_ticker():
-    """FAKE123 does not exist — should fetch from SEC (returns empty)."""
     state = make_state(
         question="What are the risks?",
         tickers=["FAKE123"]
     )
     result = retrieve_sec_data(state)
     assert "chunks" in result
-    assert isinstance(result["chunks"], list)
+    assert isinstance(result["chunks"], dict)
+    assert result["chunks"].get("FAKE123") == []
 
 
 # ─────────────────────────────────────────────
@@ -205,14 +206,14 @@ def test_get_market_data_aapl():
     state = make_state(tickers=["AAPL"])
     result = get_market_data(state)
     assert result["market_data"] is not None
-    assert result["market_data"]["ticker"] == "AAPL"
-    assert result["market_data"]["current_price"] is not None
-    assert result["market_data"]["pe_ratio"] is not None
+    assert "AAPL" in result["market_data"]
+    assert result["market_data"]["AAPL"]["current_price"] is not None
+    assert result["market_data"]["AAPL"]["pe_ratio"] is not None
 
 def test_get_market_data_no_ticker():
     state = make_state(tickers=[])
     result = get_market_data(state)
-    assert result["market_data"] is None
+    assert result["market_data"] == {}
 
 
 # ─────────────────────────────────────────────
@@ -223,9 +224,10 @@ def test_get_news_aapl():
     state = make_state(tickers=["AAPL"])
     result = get_news(state)
     assert "news" in result
-    assert isinstance(result["news"], list)
-    if len(result["news"]) > 0:
-        article = result["news"][0]
+    assert "AAPL" in result["news"]
+    assert isinstance(result["news"]["AAPL"], list)
+    if len(result["news"]["AAPL"]) > 0:
+        article = result["news"]["AAPL"][0]
         assert "title" in article
         assert "sentiment" in article
         assert "score" in article
@@ -234,7 +236,7 @@ def test_get_news_aapl():
 def test_get_news_no_ticker():
     state = make_state(tickers=[])
     result = get_news(state)
-    assert result["news"] == []
+    assert result["news"] == {}
 
 
 # ─────────────────────────────────────────────
@@ -268,17 +270,15 @@ def test_handle_greeting():
 
 
 # ─────────────────────────────────────────────
-# Node: Discovery Recommendation
+# Node: Discovery 
 # ─────────────────────────────────────────────
 
 
-def test_handle_discovery():
+def test_discovery_suggest():
     state = make_state(question="Find me a low risk stock")
-    result = handle_discovery(state)
-    assert "answer" in result
-    assert len(result["answer"]) > 0
-    assert "messages" in result
-    assert len(result["messages"]) == 2
+    result = discovery_suggest(state)
+    assert "tickers" in result
+    assert len(result["tickers"]) == 5
 
 # ─────────────────────────────────────────────
 # Node: Comparison

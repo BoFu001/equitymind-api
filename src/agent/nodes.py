@@ -20,18 +20,19 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # Node progress messages — user-friendly UX language
 # ─────────────────────────────────────────────
 NODE_PROGRESS = {
-    "classify":       "Understanding your question...",
-    "extract":        "Identifying the company...",
-    "retrieve":       "Reading the annual report...",
-    "fetch":          "Downloading the annual report from SEC...",
-    "market_data":    "Checking live market data...",
-    "news":           "Reading the latest news...",
-    "report":         "Writing your investment report...",
-    "comparison":     "Comparing the companies...",
-    "discovery":      "Searching for the best stocks for you...",
-    "greeting":       "Welcome! Preparing your response...",
-    "out_of_scope":   "Let me help you with that...",
-    "no_ticker":      "Almost there, checking your request...",
+    "classify":         "Understanding your question...",
+    "extract":          "Identifying the company...",
+    "retrieve":         "Reading the annual report...",
+    "fetch":            "Downloading the annual report from SEC...",
+    "market_data":      "Checking live market data...",
+    "news":             "Reading the latest news...",
+    "report":           "Writing your investment report...",
+    "comparison":       "Comparing the companies...",
+    "discovery":        "Searching for the best stocks for you...",
+    "discovery_report": "Writing your discovery report...",
+    "greeting":         "Welcome! Preparing your response...",
+    "out_of_scope":     "Let me help you with that...",
+    "no_ticker":        "Almost there, checking your request...",
 }
 
 
@@ -144,47 +145,55 @@ Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example
 # ─────────────────────────────────────────────
 def retrieve_sec_data(state: AgentState) -> dict:
     """
-    Single responsibility: get SEC chunks for one ticker.
+    Single responsibility: get SEC chunks for all tickers.
     Replaces: check_pinecone + retrieve_chunks + fetch_and_retrieve
-    Checks Pinecone first — fetches from SEC if not found.
+    Works for 1 ticker (SPECIFIC_STOCK) or N tickers (COMPARISON, DISCOVERY).
     """
     writer = get_stream_writer()
 
-    ticker   = (state.get("tickers") or [None])[0]
+    tickers  = state.get("tickers") or []
     question = state["question"]
 
-    if check_ticker_exists(ticker):
-        writer({"type": "progress", "node": "retrieve", "message": NODE_PROGRESS["retrieve"]})
-        chunks = retrieve(question, ticker)
-        print(f"  [retrieve_sec_data] Retrieved {len(chunks)} chunks for {ticker}")
-    else:
-        writer({"type": "progress", "node": "fetch", "message": NODE_PROGRESS["fetch"]})
-        chunks = fetch_embed_store_retrieve(question, ticker)
-        print(f"  [retrieve_sec_data] Fetched {len(chunks)} chunks for {ticker}")
+    all_chunks = {}
+    for t in tickers:
+        try:
+            if check_ticker_exists(t):
+                writer({"type": "progress", "node": "retrieve", "message": NODE_PROGRESS["retrieve"]})
+                all_chunks[t] = retrieve(question, t)
+            else:
+                writer({"type": "progress", "node": "fetch", "message": NODE_PROGRESS["fetch"]})
+                all_chunks[t] = fetch_embed_store_retrieve(question, t)
+        except Exception as e:
+            print(f"  [retrieve_sec_data] Could not fetch SEC data for {t}: {e}")
+            all_chunks[t] = []
 
-    return {"chunks": chunks}
+    print(f"  [retrieve_sec_data] SEC data fetched for {list(all_chunks.keys())}")
+    return {"chunks": all_chunks}
 
 # ─────────────────────────────────────────────
 # Node: Get Market Data
 # ─────────────────────────────────────────────
 def get_market_data(state: AgentState) -> dict:
     """
-    Fetches market data using the market_data tool.
+    Single responsibility: fetch market data for all tickers.
+    Works for 1 ticker (SPECIFIC_STOCK) or N tickers (COMPARISON, DISCOVERY).
     """
-
-
     writer = get_stream_writer()
     writer({"type": "progress", "node": "market_data", "message": NODE_PROGRESS["market_data"]})
 
+    tickers = state.get("tickers") or []
 
-    ticker = (state.get("tickers") or [None])[0]
+    if not tickers:
+        return {"market_data": {}}
 
-    if not ticker:
-        return {"market_data": None}
+    all_market_data = {}
+    for t in tickers:
+        data = get_stock_data(t)
+        if data:
+            all_market_data[t] = data
+        print(f"  [get_market_data] Market data fetched for {t}")
 
-    market_data = get_stock_data(ticker)
-    print(f"  [get_market_data] Market data fetched for {ticker}: price={market_data.get('current_price') if market_data else None}")
-    return {"market_data": market_data}
+    return {"market_data": all_market_data}
 
 
 
@@ -195,26 +204,21 @@ def get_market_data(state: AgentState) -> dict:
 # Node: Get News and Sentiment
 # ─────────────────────────────────────────────
 def get_news(state: AgentState) -> dict:
-    """
-    Fetches recent news and sentiment for the ticker using FinBERT. 
-
-    NOTE: Currently using Finlight free tier (Launchpad plan).
-    Free tier has 12-hour news delay and no real-time access.
-    """
-
-
     writer = get_stream_writer()
     writer({"type": "progress", "node": "news", "message": NODE_PROGRESS["news"]})
 
+    tickers = state.get("tickers") or []
 
-    ticker = (state.get("tickers") or [None])[0]
+    if not tickers:
+        return {"news": {}}
 
-    if not ticker:
-        return {"news": []}
+    all_news = {}
+    for t in tickers:
+        articles = get_news_and_sentiment(t)
+        all_news[t] = articles
+        print(f"  [get_news] {len(articles)} articles fetched for {t}")
 
-    news = get_news_and_sentiment(ticker)
-    print(f"  [get_news] {len(news)} articles fetched for {ticker}")
-    return {"news": news}
+    return {"news": all_news}
 
 
 
@@ -236,9 +240,9 @@ def generate_report(state: AgentState) -> dict:
 
     question    = state["question"]
     ticker      = (state.get("tickers") or [None])[0]
-    chunks      = state.get("chunks") or []
-    market_data = state.get("market_data") or {}
-    news        = state.get("news") or []
+    chunks      = (state.get("chunks") or {}).get(ticker, [])
+    market_data = (state.get("market_data") or {}).get(ticker, {})
+    news        = (state.get("news") or {}).get(ticker, [])
     messages    = state.get("messages") or []
 
     # ── Format SEC chunks for prompt ──
@@ -501,29 +505,20 @@ What would you like to research today?"""
     return {"answer": answer, "messages": updated_messages}
 
 
-
-
-
 # ─────────────────────────────────────────────
-# Node: Handle Discovery Recommendation
+# Node: Discovery Suggest
 # ─────────────────────────────────────────────
-def handle_discovery(state: AgentState) -> dict:
+def discovery_suggest(state: AgentState) -> dict:
     """
-    Handles general discovery/investment recommendation requests.
-    Step 1: LLM suggests 5 candidate tickers based on user criteria.
-    Step 2: Fetch real market data and SEC chunks for each candidate.
-    Step 3: LLM ranks and recommends top 3 based on real data.
+    Single responsibility: LLM suggests 5 candidate tickers based on user criteria.
+    Writes candidate tickers to state["tickers"] so retrieve_sec, market_data, news can process them.
     """
-
-
     writer = get_stream_writer()
     writer({"type": "progress", "node": "discovery", "message": NODE_PROGRESS["discovery"]})
-
 
     question = state["question"]
     messages = state.get("messages") or []
 
-    # ── Step 1: Ask LLM to suggest 5 candidate tickers ──
     ticker_prompt = f"""You are a financial analyst.
 The user wants investment recommendations based on their criteria.
 
@@ -536,8 +531,7 @@ Do NOT suggest foreign companies or ADRs (e.g. Alibaba, ASML, Toyota, TSM).
 Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example:
 {{"tickers": ["JNJ", "WMT", "BRK-B", "PFE", "JPM"]}}
 
-# NOTE: Once 20-F pipeline is built (sec_loader_20f.py),
-# remove the 10-K constraint above to support global companies."""
+# NOTE: Once 20-F pipeline is built, remove the 10-K constraint above."""
 
     ticker_response = client.chat.completions.create(
         model=LLM_MODEL,
@@ -549,64 +543,35 @@ Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example
         ticker_data = json.loads(ticker_response.choices[0].message.content.strip())
         candidate_tickers = ticker_data.get("tickers", [])
     except Exception:
-        print(f"  [handle_discovery] Could not parse candidate tickers")
-        answer = f"""I encountered a technical issue processing your request.
+        print(f"  [discovery_suggest] Could not parse candidate tickers")
+        candidate_tickers = []
 
-Please try again or rephrase your question."""
-        updated_messages = messages + [
-            {"role": "user",      "content": question},
-            {"role": "assistant", "content": answer},
-        ]
-        return {"answer": answer, "messages": updated_messages}
-
-    if not candidate_tickers:
-        answer = f"""I couldn't find companies matching your specific criteria.
-
-Please try:
-- Being more specific (e.g. "Find me a low risk healthcare stock")
-- Asking about a specific company (e.g. "Analyse Johnson and Johnson")"""
-        updated_messages = messages + [
-            {"role": "user",      "content": question},
-            {"role": "assistant", "content": answer},
-        ]
-        return {"answer": answer, "messages": updated_messages}
-
-    print(f"  [handle_discovery] Step 1 — Candidates: {candidate_tickers}")
+    print(f"  [discovery_suggest] Candidates: {candidate_tickers}")
+    return {"tickers": candidate_tickers}
 
 
-    # ── Step 2: Fetch real data for each candidate ──
-    all_market_data = {}
-    for t in candidate_tickers:
-        data = get_stock_data(t)
-        if data:
-            all_market_data[t] = data
+# ─────────────────────────────────────────────
+# Node: Discovery Report
+# ─────────────────────────────────────────────
+def discovery_report(state: AgentState) -> dict:
+    """
+    Single responsibility: format real data and generate discovery report.
+    Reads chunks, market_data, news from state — all populated by upstream nodes.
+    """
+    writer = get_stream_writer()
+    writer({"type": "progress", "node": "discovery_report", "message": NODE_PROGRESS["discovery_report"]})
 
+    question   = state["question"]
+    tickers    = state.get("tickers") or []
+    messages   = state.get("messages") or []
+    all_chunks = state.get("chunks") or {}
+    all_market = state.get("market_data") or {}
+    all_news   = state.get("news") or {}
 
-    all_chunks = {}
-    for t in candidate_tickers:
-        try:
-            if check_ticker_exists(t):
-                chunks = retrieve(question, t, top_k=3)
-            else:
-                chunks = fetch_embed_store_retrieve(question, t, top_k=3)
-            all_chunks[t] = chunks
-        except Exception as e:
-            print(f"  [handle_discovery] Could not fetch SEC data for {t}: {e}")
-            all_chunks[t] = []
-
-    print(f"  [handle_discovery] Step 2 — Real data fetched for {list(all_market_data.keys())}")
-
-    # ── Step 3: Format real data for prompt ──
-    market_context = ""
-    for t, md in all_market_data.items():
-        market_context += f"\n{t} ({md.get('company_name')}):\n"
-        market_context += f"  Price: ${md.get('current_price')} | P/E: {md.get('pe_ratio')} | Forward P/E: {md.get('forward_pe')}\n"
-        market_context += f"  Revenue: {md.get('revenue')} | Profit Margin: {md.get('profit_margin')}\n"
-        market_context += f"  RSI: {md.get('rsi')} | Dividend Yield: {md.get('dividend_yield')}\n"
-        market_context += f"  Analyst Target: ${md.get('target_mean')} | Recommendation: {md.get('recommendation')}\n"
-
+    # ── Format SEC chunks ──
     sec_context = ""
-    for t, chunks in all_chunks.items():
+    for t in tickers:
+        chunks = all_chunks.get(t, [])
         sec_context += f"\n{t} SEC Filing:\n"
         if not chunks:
             sec_context += "  No SEC 10-K data available.\n"
@@ -614,29 +579,48 @@ Please try:
             for chunk in chunks:
                 sec_context += chunk.get("text", "")[:300] + "\n"
 
-    # ── Step 4: LLM ranks and recommends top 3 ──
-        
+
+    # ── Format market data ──
+    market_context = ""
+    for t in tickers:
+        md = all_market.get(t, {})
+        market_context += f"\n{t} ({md.get('company_name')}):\n"
+        market_context += f"  Price: ${md.get('current_price')} | P/E: {md.get('pe_ratio')} | Forward P/E: {md.get('forward_pe')}\n"
+        market_context += f"  Revenue: {md.get('revenue')} | Profit Margin: {md.get('profit_margin')}\n"
+        market_context += f"  RSI: {md.get('rsi')} | Dividend Yield: {md.get('dividend_yield')}\n"
+        market_context += f"  Analyst Target: ${md.get('target_mean')} | Recommendation: {md.get('recommendation')}\n"
+
+
+    # ── Format news ──
+    news_context = ""
+    for t in tickers:
+        articles = all_news.get(t, [])
+        if articles:
+            news_context += f"\n{t} News:\n"
+            for article in articles[:3]:
+                news_context += f"  [{article.get('sentiment','').upper()}] {article.get('title','')} ({article.get('score',0):.2f})\n"
+
+
+
     prompt = f"""You are {APP_NAME}, a professional AI investment research analyst.
 The user wants investment recommendations. You have real market data and SEC filing data
 for 5 candidate companies. Use this real data to rank and recommend the top 3.
-
-
 
 IMPORTANT RULES:
 - Format large numbers cleanly — use $24.5B not $24,452,999,168.
 - Round decimal numbers to 2 decimal places — use 15.10 not 15.105477.
 
-
-
-
 USER QUESTION: {question}
 DATE: {datetime.now().strftime('%B %d, %Y')}
+
+SEC FILING EXCERPTS:
+{sec_context}
 
 REAL MARKET DATA FOR 5 CANDIDATES:
 {market_context}
 
-SEC FILING EXCERPTS:
-{sec_context}
+NEWS & SENTIMENT (last 30 days):
+{news_context}
 
 Based on the REAL DATA above:
 1. Rank all 5 companies against the user's criteria
@@ -664,12 +648,16 @@ Generate in markdown format:
 | Dividend Yield | | | |
 | Analyst View | | | |
 
-## Next Steps
+## 📰 News Sentiment (Top 3)
+[For each of the top 3 companies — list 2-3 key news headlines with sentiment and score]
+Format: [emoji] [title] — [POSITIVE/NEGATIVE/NEUTRAL] ([score]) — [date]
+
+## 👉 Next Steps
 Ask me for a detailed analysis of any of these companies.
 
 *This is AI-generated for educational purposes only. Not financial advice.*"""
 
-    queue = token_queue_var.get()
+    queue  = token_queue_var.get()
     answer = ""
 
     response = client.chat.completions.create(
@@ -691,8 +679,13 @@ Ask me for a detailed analysis of any of these companies.
         {"role": "assistant", "content": answer},
     ]
 
-    print(f"  [handle_discovery] Step 3 — Recommendation generated for top 3 from {candidate_tickers}")
+    print(f"  [discovery_report] Report generated from {tickers}")
     return {"answer": answer, "messages": updated_messages}
+
+
+
+
+
 
 
 # ─────────────────────────────────────────────
@@ -835,7 +828,6 @@ Generate a structured comparison report in markdown format:
 
     print(f"  [handle_comparison] Comparison report generated for {tickers}")
     return {"answer": answer, "messages": updated_messages}
-
 
 
 
