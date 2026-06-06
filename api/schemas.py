@@ -125,13 +125,13 @@ class DoneEvent(BaseModel):
     having to parse the markdown report text.
 
     Example:
-        {"type": "done", "job_id": "...", "ticker": "AAPL", "intent": "SPECIFIC_STOCK"}
+        {"type": "done", "job_id": "...", "tickers": ["AAPL"], "intent": "SPECIFIC_STOCK"}
     """
     type: Literal["done"] = "done"
     job_id: str
-    ticker: Optional[str] = Field(
+    tickers: Optional[list[str]] = Field(
         default=None,
-        description="Primary ticker extracted by the agent, if applicable.",
+        description="All tickers involved in the query.",
     )
     intent: Optional[str] = Field(
         default=None,
@@ -197,17 +197,13 @@ class SyncResponse(BaseModel):
     Example JSON:
         {
             "job_id": "550e8400-...",
-            "ticker": "AAPL",
+            "tickers": ["AAPL"],
             "intent": "SPECIFIC_STOCK",
             "answer": "## Apple Inc (AAPL)...",
             "status": "success"
         }
     """
     job_id: str = Field(description="Server-generated unique identifier for this request.")
-    ticker: Optional[str] = Field(
-        default=None,
-        description="Primary ticker extracted by the agent.",
-    )
     tickers: Optional[list[str]] = Field(
         default=None,
         description="All tickers involved (relevant for COMPARISON intent).",

@@ -55,7 +55,7 @@ async def query_stream(websocket: WebSocket):
         {"type": "connected",  "job_id": "..."}
         {"type": "progress",   "node": "classify", "message": "..."}
         {"type": "token",      "text": "## Apple Inc"}
-        {"type": "done",       "job_id": "...", "ticker": "AAPL", "intent": "SPECIFIC_STOCK"}
+        {"type": "done",       "job_id": "...", "tickers": ["AAPL"], "intent": "SPECIFIC_STOCK"}
     """
     await websocket.accept()
 
@@ -149,7 +149,7 @@ async def query_stream(websocket: WebSocket):
         await websocket.send_text(
             DoneEvent(
                 job_id=job_id,
-                ticker=final_state.get("ticker"),
+                tickers=final_state.get("tickers"),
                 intent=final_state.get("intent"),
             ).model_dump_json()
         )
@@ -200,7 +200,6 @@ async def query_sync(request: SyncRequest):
 
         return SyncResponse(
             job_id=job_id,
-            ticker=final_state.get("ticker"),
             tickers=final_state.get("tickers"),
             intent=final_state.get("intent"),
             answer=final_state.get("answer", ""),
@@ -211,7 +210,6 @@ async def query_sync(request: SyncRequest):
         logger.exception("Sync query error (job_id=%s)", job_id)
         return SyncResponse(
             job_id=job_id,
-            ticker=None,
             tickers=None,
             intent=None,
             answer="",

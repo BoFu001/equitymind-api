@@ -18,8 +18,7 @@ class AgentState(TypedDict):
     data_status: Optional[str]  # RETRIEVE / FETCH_NEEDED / NO_TICKER
 
     # Extracted parameters
-    ticker: Optional[str]       # primary ticker e.g. "AAPL"
-    tickers: Optional[list]     # all tickers e.g. ["AAPL"] or ["AAPL", "MSFT"]
+    tickers: Optional[list[str]]     # all tickers e.g. ["AAPL"] or ["AAPL", "MSFT"]
     year: Optional[str]         # e.g. "2025" or None for latest
 
     # Retrieval
@@ -55,7 +54,6 @@ def build_initial_state(question: str) -> dict:
         "messages":    [],
         "intent":      None,
         "data_status": None,
-        "ticker":      None,
         "tickers":     [],
         "year":        None,
         "chunks":      [],

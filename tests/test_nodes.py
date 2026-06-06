@@ -35,7 +35,6 @@ def make_state(**kwargs) -> AgentState:
         "messages": [],
         "intent": None,
         "data_status": None,
-        "ticker": None,
         "tickers": [], 
         "year": None,
         "chunks": None,
@@ -93,19 +92,19 @@ def test_classify_intent_vague_sector():
 def test_extract_parameters_aapl():
     state = make_state(question="What are Apple's biggest risks?")
     result = extract_parameters(state)
-    assert result["ticker"] == "AAPL"
+    assert result["tickers"] == ["AAPL"]
     assert result["year"] is None
 
 def test_extract_parameters_with_year():
     state = make_state(question="What were Microsoft's risks in 2024?")
     result = extract_parameters(state)
-    assert result["ticker"] == "MSFT"
+    assert result["tickers"] == ["MSFT"]
     assert result["year"] == "2024"
 
 def test_extract_parameters_no_ticker():
     state = make_state(question="Find me a low risk stock")
     result = extract_parameters(state)
-    assert result["ticker"] is None
+    assert result["tickers"] == []
 
 
 
@@ -113,7 +112,6 @@ def test_extract_parameters_multiple_tickers():
     state = make_state(question="Compare Apple and Microsoft")
     result = extract_parameters(state)
     assert result["tickers"] == ["AAPL", "MSFT"]
-    assert result["ticker"] == "AAPL"
     
 
 
@@ -121,17 +119,17 @@ def test_extract_parameters_multiple_tickers():
 def test_extract_parameters_amazon():
     state = make_state(question="Analyse Amazon")
     result = extract_parameters(state)
-    assert result["ticker"] == "AMZN"
+    assert result["tickers"] == ["AMZN"]
 
 def test_extract_parameters_alibaba():
     state = make_state(question="Analyse Alibaba")
     result = extract_parameters(state)
-    assert result["ticker"] == "BABA"
+    assert result["tickers"] == ["BABA"]
 
 def test_extract_parameters_tencent():
     state = make_state(question="Analyse Tencent")
     result = extract_parameters(state)
-    assert result["ticker"] == "0700.HK"
+    assert result["tickers"] == ["0700.HK"]
 
 # ─────────────────────────────────────────────
 # Node: Intent Classification + Extract Parameters for Edge case tests: valid intent but no ticker
@@ -160,31 +158,29 @@ def test_no_ticker_edge_cases():
         # Step 2 — extract
         extract_state = make_state(question=question, intent=intent)
         extract_result = extract_parameters(extract_state)
-        ticker = extract_result.get("ticker")
         tickers = extract_result.get("tickers", [])
 
         print(f"\nQ: '{question}'")
         print(f"  Intent: {intent}")
-        print(f"  Ticker: {ticker} | Tickers: {tickers}")
 
         # Assert: if COMPARISON or SPECIFIC_STOCK — no ticker should be found
         # These vague questions should either route to DISCOVERY or have no ticker
         if intent == "COMPARISON":
             assert not tickers, f"Expected no tickers for vague COMPARISON: '{question}' but got {tickers}"
         if intent == "SPECIFIC_STOCK":
-            assert ticker is None, f"Expected no ticker for vague SPECIFIC_STOCK: '{question}' but got {ticker}"
+            assert not tickers, f"Expected no tickers for vague SPECIFIC_STOCK: '{question}' but got {tickers}"
 
 # ─────────────────────────────────────────────
 # Node: Check Pinecone
 # ─────────────────────────────────────────────
 
 def test_check_pinecone_exists():
-    state = make_state(ticker="AAPL")
+    state = make_state(tickers=["AAPL"])
     result = check_pinecone(state)
     assert result["data_status"] == "RETRIEVE"
 
 def test_check_pinecone_not_exists():
-    state = make_state(ticker="FAKE123")
+    state = make_state(tickers=["FAKE123"])
     result = check_pinecone(state)
     assert result["data_status"] == "FETCH_NEEDED"
 
@@ -196,7 +192,7 @@ def test_check_pinecone_not_exists():
 def test_retrieve_chunks_aapl():
     state = make_state(
         question="What are Apple's biggest risks?",
-        ticker="AAPL"
+        tickers=["AAPL"]
     )
     result = retrieve_chunks(state)
     assert "chunks" in result
@@ -211,7 +207,7 @@ def test_retrieve_chunks_aapl():
 # ─────────────────────────────────────────────
 
 def test_get_market_data_aapl():
-    state = make_state(ticker="AAPL")
+    state = make_state(tickers=["AAPL"])
     result = get_market_data(state)
     assert result["market_data"] is not None
     assert result["market_data"]["ticker"] == "AAPL"
@@ -219,7 +215,7 @@ def test_get_market_data_aapl():
     assert result["market_data"]["pe_ratio"] is not None
 
 def test_get_market_data_no_ticker():
-    state = make_state(ticker=None)
+    state = make_state(tickers=[])
     result = get_market_data(state)
     assert result["market_data"] is None
 
@@ -229,7 +225,7 @@ def test_get_market_data_no_ticker():
 # ─────────────────────────────────────────────
 
 def test_get_news_aapl():
-    state = make_state(ticker="AAPL")
+    state = make_state(tickers=["AAPL"])
     result = get_news(state)
     assert "news" in result
     assert isinstance(result["news"], list)
@@ -241,7 +237,7 @@ def test_get_news_aapl():
         assert "url" in article
 
 def test_get_news_no_ticker():
-    state = make_state(ticker=None)
+    state = make_state(tickers=[])
     result = get_news(state)
     assert result["news"] == []
 

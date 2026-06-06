@@ -36,18 +36,12 @@ def route_intent(state: AgentState) -> str:
 def route_after_extract(state: AgentState) -> str:
     """Routes after Node extract based on intent and ticker availability."""
     intent = state.get("intent", "")
-    ticker = state.get("ticker")
     tickers = state.get("tickers") or []
 
-    if intent == "SPECIFIC_STOCK" and not ticker:
+    if not tickers:
         return "no_ticker"
-
-    if intent == "COMPARISON" and not tickers:
-        return "no_ticker"
-
     if intent == "COMPARISON":
         return "comparison"
-
     return "check_pinecone"
 
 def route_data_status(state: AgentState) -> str:

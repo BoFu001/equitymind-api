@@ -53,7 +53,8 @@ async def test():
                 print(data.get("text", ""), end="", flush=True)
 
             elif event_type == "done":
-                print(f"\n[done]       job_id={data.get('job_id')} | ticker={data.get('ticker')} | intent={data.get('intent')}")
+                tickers = data.get('tickers') or []
+                print(f"[done]    job_id={data.get('job_id')} | tickers={tickers} | intent={data.get('intent')}")
                 break
 
             elif event_type == "error":

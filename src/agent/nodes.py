@@ -125,20 +125,19 @@ Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example
 
     if not content:
         print(f"  [extract_parameters] Empty response from {LLM_MODEL}, using defaults")
-        return {"ticker": None, "tickers": [], "year": None}
+        return {"tickers": [], "year": None}
 
     try:
         data = json.loads(content)
     except json.JSONDecodeError:
-        print(f"  [extract_parameters] Invalid JSON: {content}")
-        return {"ticker": None, "tickers": [], "year": None}
+            print(f"  [extract_parameters] Invalid JSON: {content}")
+            return {"tickers": [], "year": None}
 
     tickers = data.get("tickers", [])
-    ticker  = tickers[0] if tickers else None
     year    = str(data.get("year")) if data.get("year") else None
 
-    print(f"  [extract_parameters] Ticker: {ticker}, Tickers: {tickers}, Year: {year}")
-    return {"ticker": ticker, "tickers": tickers, "year": year}
+    print(f"  [extract_parameters] Tickers: {tickers}, Year: {year}")
+    return {"tickers": tickers, "year": year}
 
 
 
@@ -158,7 +157,7 @@ def check_pinecone(state: AgentState) -> dict:
 
 
 
-    ticker = state["ticker"]
+    ticker = (state.get("tickers") or [None])[0]
 
     if check_ticker_exists(ticker):
         print(f"  [check_pinecone] {ticker} found in Pinecone → retrieve")
@@ -179,8 +178,9 @@ def retrieve_chunks(state: AgentState) -> dict:
     writer({"type": "progress", "node": "retrieve", "message": NODE_PROGRESS["retrieve"]})
 
 
-    chunks = retrieve(state["question"], state["ticker"])
-    print(f"  [retrieve_chunks] Retrieved {len(chunks)} chunks for {state['ticker']}")
+    ticker = (state.get("tickers") or [None])[0]
+    chunks = retrieve(state["question"], ticker)
+    print(f"  [retrieve_chunks] Retrieved {len(chunks)} chunks for {ticker}")
     return {"chunks": chunks}
 
 
@@ -196,8 +196,9 @@ def fetch_and_retrieve(state: AgentState) -> dict:
     writer({"type": "progress", "node": "fetch", "message": NODE_PROGRESS["fetch"]})
 
 
-    chunks = fetch_embed_store_retrieve(state["question"], state["ticker"])
-    print(f"  [fetch_and_retrieve] Retrieved {len(chunks)} chunks for {state['ticker']}")
+    ticker = (state.get("tickers") or [None])[0]
+    chunks = fetch_embed_store_retrieve(state["question"], ticker)
+    print(f"  [fetch_and_retrieve] Retrieved {len(chunks)} chunks for {ticker}")
     return {"chunks": chunks}
 
 
@@ -217,7 +218,7 @@ def get_market_data(state: AgentState) -> dict:
     writer({"type": "progress", "node": "market_data", "message": NODE_PROGRESS["market_data"]})
 
 
-    ticker = state["ticker"]
+    ticker = (state.get("tickers") or [None])[0]
 
     if not ticker:
         return {"market_data": None}
@@ -247,7 +248,7 @@ def get_news(state: AgentState) -> dict:
     writer({"type": "progress", "node": "news", "message": NODE_PROGRESS["news"]})
 
 
-    ticker = state["ticker"]
+    ticker = (state.get("tickers") or [None])[0]
 
     if not ticker:
         return {"news": []}
@@ -275,7 +276,7 @@ def generate_report(state: AgentState) -> dict:
 
 
     question    = state["question"]
-    ticker      = state["ticker"]
+    ticker      = (state.get("tickers") or [None])[0]
     chunks      = state.get("chunks") or []
     market_data = state.get("market_data") or {}
     news        = state.get("news") or []
