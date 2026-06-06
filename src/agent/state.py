@@ -14,9 +14,6 @@ class AgentState(TypedDict):
     # Intent classification
     intent: Optional[str]       # SPECIFIC_STOCK / COMPARISON / DISCOVERY / ANALYZE_POSITION / ANALYZE_PORTFOLIO / GREETING / OUT_OF_SCOPE
 
-    # Routing decision
-    data_status: Optional[str]  # RETRIEVE / FETCH_NEEDED / NO_TICKER
-
     # Extracted parameters
     tickers: Optional[list[str]]     # all tickers e.g. ["AAPL"] or ["AAPL", "MSFT"]
     year: Optional[str]         # e.g. "2025" or None for latest
@@ -53,7 +50,6 @@ def build_initial_state(question: str) -> dict:
         "question":    question,
         "messages":    [],
         "intent":      None,
-        "data_status": None,
         "tickers":     [],
         "year":        None,
         "chunks":      [],

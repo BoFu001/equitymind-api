@@ -22,7 +22,6 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 NODE_PROGRESS = {
     "classify":       "Understanding your question...",
     "extract":        "Identifying the company...",
-    "check_pinecone": "Checking our knowledge base...",
     "retrieve":       "Reading the annual report...",
     "fetch":          "Downloading the annual report from SEC...",
     "market_data":    "Checking live market data...",
@@ -55,13 +54,13 @@ def classify_intent(state: AgentState) -> dict:
     prompt = f"""You are {APP_NAME}'s intent classifier.
 Classify the user question into exactly one of these categories:
 
+- GREETING: user is saying hello or asking what {APP_NAME} can do (e.g. "Hi", "What can you do?")
+- OUT_OF_SCOPE: question has NO relation to investing, stocks, or financial markets (e.g. "I want to be rich", "What's the weather?", "Am I handsome?")
 - SPECIFIC_STOCK: user asks about one NAMED specific company (e.g. "What are Apple's risks?", "Analyse NVIDIA", "Tell me about Tesla"). The company must be explicitly named — NOT vague like "a tech company" or "a healthcare stock".
 - COMPARISON: user wants to compare two or more EXPLICITLY NAMED companies with real identifiable stock tickers (e.g. "Compare Apple and Microsoft", "AAPL vs GOOGL", "Tesla versus BMW"). IMPORTANT: if no specific company names are mentioned, classify as DISCOVERY instead. "Compare two tech companies" or "Compare them" are DISCOVERY, not COMPARISON.
 - DISCOVERY: user wants general investment recommendations, asks about a sector, or asks general financial market questions without naming a specific company (e.g. "Find me a low risk stock", "Analyse a tech company", "Tell me about semiconductor stocks", "Tell me about the stock market", "What is a good investment?")
 - ANALYZE_POSITION: user asks about their own holding in one stock (e.g. "I bought AAPL at $165, should I sell?", "I have 200 Apple shares, what should I do?")
 - ANALYZE_PORTFOLIO: user wants to analyse their full portfolio of multiple stocks (e.g. "Review my portfolio: AAPL 200 shares, NVDA 50 shares")
-- GREETING: user is saying hello or asking what {APP_NAME} can do (e.g. "Hi", "What can you do?")
-- OUT_OF_SCOPE: question has NO relation to investing, stocks, or financial markets (e.g. "I want to be rich", "What's the weather?", "Am I handsome?")
 
 User question: {question}
 

@@ -42,14 +42,6 @@ def route_after_extract(state: AgentState) -> str:
         return "comparison"
     return "retrieve_sec"
 
-def route_data_status(state: AgentState) -> str:
-    """Routes after Node check_pinecone based on data_status."""
-    status = state.get("data_status", "")
-    if status == "RETRIEVE":
-        return "retrieve"
-    if status == "FETCH_NEEDED":
-        return "fetch"
-
 
 # ─────────────────────────────────────────────
 # Build the graph
