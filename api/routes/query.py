@@ -114,7 +114,7 @@ async def query_stream(websocket: WebSocket):
                             )
                         elif event_type == "sub_progress":
                             await websocket.send_text(
-                                SubProgressEvent(message=data["message"]).model_dump_json()
+                                SubProgressEvent(node=data["node"], message=data["message"]).model_dump_json()
                             )
 
             except Exception as e:

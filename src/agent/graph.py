@@ -4,7 +4,7 @@ from src.agent.state import AgentState
 from src.agent.nodes import (
     classify_intent,
     extract_parameters,
-    retrieve_sec_data,
+    ensure_sec_data,
     get_market_data,
     get_news,
     specific_report,
@@ -40,7 +40,7 @@ def route_after_extract(state: AgentState) -> str:
     if not tickers:
         return "no_ticker"
     else:
-        return "retrieve_sec"
+        return "ensure_sec"
 
 def route_after_news(state: AgentState) -> str:
     intent = state.get("intent", "")
@@ -61,7 +61,7 @@ def build_graph():
     # Add all nodes
     graph.add_node("classify",          classify_intent)
     graph.add_node("extract",           extract_parameters)
-    graph.add_node("retrieve_sec",      retrieve_sec_data)
+    graph.add_node("ensure_sec",      ensure_sec_data)
     graph.add_node("market_data",       get_market_data)
     graph.add_node("news",              get_news)
     graph.add_node("specific_report",   specific_report)
@@ -93,7 +93,7 @@ def build_graph():
         route_after_extract,
         {
             "no_ticker":      "no_ticker",
-            "retrieve_sec":   "retrieve_sec",
+            "ensure_sec":     "ensure_sec",
         }
     )
 
@@ -108,8 +108,8 @@ def build_graph():
     )
 
     # Linear flow after market_data
-    graph.add_edge("discovery_suggest",   "retrieve_sec")
-    graph.add_edge("retrieve_sec",        "market_data")
+    graph.add_edge("discovery_suggest",   "ensure_sec")
+    graph.add_edge("ensure_sec",        "market_data")
     graph.add_edge("market_data",         "news")
 
     # End nodes

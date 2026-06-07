@@ -30,24 +30,25 @@ def fetch_embed_store_retrieve(question: str, ticker: str, top_k: int = 5) -> li
     Dynamically fetches SEC filing for a ticker not in Pinecone.
     Downloads, embeds, stores, then retrieves relevant chunks.
     """
-    print(f"  [sec_retrieval] Fetching {ticker} from SEC EDGAR...")
+
+    print(f"  [fetch_embed_store_retrieve] Fetching {ticker} from SEC EDGAR...")
 
     # Step 1: Download and chunk
     chunks = ingest_sec_filing(ticker)
 
     if not chunks:
-        print(f"  [sec_retrieval] No 10-K data for {ticker} — skipping embed/store")
+        print(f"  [fetch_embed_store_retrieve] No 10-K data for {ticker} — skipping embed/store")
         return []
 
-    print(f"  [sec_retrieval] Downloaded {len(chunks)} chunks")
+    print(f"  [fetch_embed_store_retrieve] Downloaded {len(chunks)} chunks")
 
     # Step 2: Embed
     embedded_chunks = embed_chunks(chunks)
-    print(f"  [sec_retrieval] Embedded {len(embedded_chunks)} chunks")
+    print(f"  [fetch_embed_store_retrieve] Embedded {len(embedded_chunks)} chunks")
 
     # Step 3: Store in Pinecone
     upsert_chunks(embedded_chunks)
-    print(f"  [sec_retrieval] Stored in Pinecone")
+    print(f"  [fetch_embed_store_retrieve] Stored in Pinecone")
 
     # Step 4: Retrieve
     return retrieve(question, ticker, top_k)

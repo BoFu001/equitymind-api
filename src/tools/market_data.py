@@ -55,5 +55,5 @@ def get_stock_data(ticker: str) -> dict | None:
         return market_data
 
     except Exception as e:
-        print(f"  [market_data] Error fetching {ticker}: {e}")
+        print(f"  [get_stock_data] Error fetching {ticker}: {e}")
         return None

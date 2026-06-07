@@ -9,31 +9,13 @@ from config import OPENAI_API_KEY, APP_NAME, LLM_MODEL
 from langgraph.config import get_stream_writer
 from core.context import token_queue_var
 from src.agent.state import AgentState
+from src.agent.nodes_notifications import NODE_PROGRESS
 from src.tools.market_data import get_stock_data
 from src.tools.news_sentiment import get_news_and_sentiment
 from src.tools.sec_retrieval import retrieve, fetch_embed_store_retrieve
 from src.vectorstore.pinecone_store import check_ticker_exists
 
 client = OpenAI(api_key=OPENAI_API_KEY)
-
-# ─────────────────────────────────────────────
-# Node progress messages — user-friendly UX language
-# ─────────────────────────────────────────────
-NODE_PROGRESS = {
-    "classify":         "Understanding your question...",
-    "extract":          "Identifying the company...",
-    "retrieve":         "Reading the annual report...",
-    "fetch":            "Downloading the annual report from SEC...",
-    "market_data":      "Checking live market data...",
-    "news":             "Reading the latest news...",
-    "specific_report":  "Writing your investment report...",
-    "comparison":       "Comparing the companies...",
-    "discovery":        "Searching for the best stocks for you...",
-    "discovery_report": "Writing your discovery report...",
-    "greeting":         "Welcome! Preparing your response...",
-    "out_of_scope":     "Let me help you with that...",
-    "no_ticker":        "Almost there, checking your request...",
-}
 
 
 # ─────────────────────────────────────────────
@@ -143,13 +125,14 @@ Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example
 # ─────────────────────────────────────────────
 # Node: Retrieve SEC Data
 # ─────────────────────────────────────────────
-def retrieve_sec_data(state: AgentState) -> dict:
+def ensure_sec_data(state: AgentState) -> dict:
     """
     Single responsibility: get SEC chunks for all tickers.
     Replaces: check_pinecone + retrieve_chunks + fetch_and_retrieve
     Works for 1 ticker (SPECIFIC_STOCK) or N tickers (COMPARISON, DISCOVERY).
     """
     writer = get_stream_writer()
+    writer({"type": "progress", "node": "ensure_sec", "message": NODE_PROGRESS["ensure_sec_data"]})
 
     tickers  = state.get("tickers") or []
     question = state["question"]
@@ -158,16 +141,16 @@ def retrieve_sec_data(state: AgentState) -> dict:
     for t in tickers:
         try:
             if check_ticker_exists(t):
-                writer({"type": "progress", "node": "retrieve", "message": NODE_PROGRESS["retrieve"]})
+                writer({"type": "sub_progress", "node": "ensure_sec", "message": NODE_PROGRESS["retrieve"].format(ticker=t)})
                 all_chunks[t] = retrieve(question, t)
             else:
-                writer({"type": "progress", "node": "fetch", "message": NODE_PROGRESS["fetch"]})
+                writer({"type": "sub_progress", "node": "ensure_sec", "message": NODE_PROGRESS["fetch"].format(ticker=t)})
                 all_chunks[t] = fetch_embed_store_retrieve(question, t)
         except Exception as e:
-            print(f"  [retrieve_sec_data] Could not fetch SEC data for {t}: {e}")
+            print(f"  [ensure_sec_data] Could not fetch SEC data for {t}: {e}")
             all_chunks[t] = []
 
-    print(f"  [retrieve_sec_data] SEC data fetched for {list(all_chunks.keys())}")
+    print(f"  [ensure_sec_data] SEC data fetched for {list(all_chunks.keys())}")
     return {"chunks": all_chunks}
 
 # ─────────────────────────────────────────────
@@ -188,6 +171,7 @@ def get_market_data(state: AgentState) -> dict:
 
     all_market_data = {}
     for t in tickers:
+        writer({"type": "sub_progress", "node": "market_data", "message": NODE_PROGRESS["market_data_sub"].format(ticker=t)})
         data = get_stock_data(t)
         if data:
             all_market_data[t] = data
@@ -214,6 +198,7 @@ def get_news(state: AgentState) -> dict:
 
     all_news = {}
     for t in tickers:
+        writer({"type": "sub_progress", "node": "news", "message": NODE_PROGRESS["news_sub"].format(ticker=t)})
         articles = get_news_and_sentiment(t)
         all_news[t] = articles
         print(f"  [get_news] {len(articles)} articles fetched for {t}")
@@ -514,7 +499,7 @@ def discovery_suggest(state: AgentState) -> dict:
     Writes candidate tickers to state["tickers"] so retrieve_sec, market_data, news can process them.
     """
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "discovery", "message": NODE_PROGRESS["discovery"]})
+    writer({"type": "progress", "node": "discovery", "message": NODE_PROGRESS["discovery_suggest"]})
 
     question = state["question"]
     messages = state.get("messages") or []
@@ -692,7 +677,7 @@ def comparison_report(state: AgentState) -> dict:
     Reads chunks, market_data, news from state — all populated by upstream nodes.
     """
     writer = get_stream_writer()
-    writer({"type": "progress", "node": "comparison", "message": NODE_PROGRESS["comparison"]})
+    writer({"type": "progress", "node": "comparison", "message": NODE_PROGRESS["comparison_report"]})
 
     question   = state["question"]
     tickers    = state.get("tickers") or []
@@ -855,14 +840,19 @@ def handle_no_ticker(state: AgentState) -> dict:
 Please name the companies specifically, for example:
 - "Compare Apple and Microsoft"
 - "Compare AAPL vs GOOGL"
-- "Tesla versus BMW" """
+- "Tesla versus BMW" 
+
+Note: Foreign companies like Airbus, Toyota, ASML, Alibaba are not yet supported (coming soon)."""
+        
     else:
         answer = f"""I couldn't identify which company or stock you are asking about.
 
 Please name the company specifically, for example:
 - "Analyse Apple"
 - "What are NVIDIA's risks?"
-- "Tell me about Tesla" """
+- "Tell me about Tesla" 
+
+Note: Foreign companies like Airbus, Toyota, ASML, Alibaba are not yet supported (coming soon)."""
 
     updated_messages = messages + [
         {"role": "user",      "content": question},

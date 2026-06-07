@@ -4,7 +4,7 @@ from src.agent.state import AgentState
 from src.agent.nodes import (
     classify_intent,
     extract_parameters,
-    retrieve_sec_data,
+    ensure_sec_data,
     get_market_data,
     get_news,
     handle_out_of_scope,
@@ -35,7 +35,6 @@ def make_state(**kwargs) -> AgentState:
         "question": "What are Apple's biggest risks?",
         "messages": [],
         "intent": None,
-        "data_status": None,
         "tickers": [], 
         "year": None,
         "chunks": None,
@@ -180,7 +179,7 @@ def test_retrieve_sec_data_existing_ticker():
         question="What are Apple's biggest risks?",
         tickers=["AAPL"]
     )
-    result = retrieve_sec_data(state)
+    result = ensure_sec_data(state)
     assert "chunks" in result
     assert "AAPL" in result["chunks"]
     assert len(result["chunks"]["AAPL"]) > 0
@@ -193,7 +192,7 @@ def test_retrieve_sec_data_unknown_ticker():
         question="What are the risks?",
         tickers=["FAKE123"]
     )
-    result = retrieve_sec_data(state)
+    result = ensure_sec_data(state)
     assert "chunks" in result
     assert isinstance(result["chunks"], dict)
     assert result["chunks"].get("FAKE123") == []
@@ -282,11 +281,24 @@ def test_discovery_suggest():
     assert len(result["tickers"]) == 5
 
 # ─────────────────────────────────────────────
-# Node: Comparison
+# Node: Report
 # ─────────────────────────────────────────────
 
 
-def test_handle_comparison():
+def test_specific_report():
+    state = make_state(
+        question="Analyse Apple",
+        tickers=["AAPL"],
+        chunks={"AAPL": []},
+        market_data={"AAPL": {}},
+        news={"AAPL": []},
+    )
+    result = specific_report(state)
+    assert "answer" in result
+    assert len(result["answer"]) > 0
+    assert "messages" in result
+
+def test_comparison_report():
     state = make_state(
         question="Compare Apple and Microsoft",
         tickers=["AAPL", "MSFT"],
@@ -295,6 +307,22 @@ def test_handle_comparison():
         news={"AAPL": [], "MSFT": []},
     )
     result = comparison_report(state)
+    assert "answer" in result
+    assert len(result["answer"]) > 0
+    assert "messages" in result
+
+def test_discovery_report():
+    state = make_state(
+        question="Find me a low risk stock",
+        tickers=["JNJ", "PG", "KO"],
+        chunks={"JNJ": [], "PG": [], "KO": []},
+        market_data={"JNJ": {}, "PG": {}, "KO": {}},
+        news={"JNJ": [], "PG": [], "KO": []},
+    )
+    result = discovery_report(state)
+    assert "answer" in result
+    assert len(result["answer"]) > 0
+    assert "messages" in result
 
 
 

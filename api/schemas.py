@@ -99,6 +99,7 @@ class ProgressEvent(BaseModel):
 
 class SubProgressEvent(BaseModel):
     type: Literal["sub_progress"] = "sub_progress"
+    node: str = Field(description="Parent node that emitted this sub_progress event.")
     message: str
 
 class TokenEvent(BaseModel):
