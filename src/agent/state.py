@@ -31,7 +31,7 @@ class AgentState(TypedDict):
     answer: Optional[str]       # final report
 
 
-def build_initial_state(question: str) -> dict:
+def build_initial_state(question: str, messages: list | None = None) -> dict:
     """
     Builds the initial AgentState dict for a new request.
 
@@ -48,7 +48,7 @@ def build_initial_state(question: str) -> dict:
     """
     return {
         "question":    question,
-        "messages":    [],
+        "messages":    messages or [],
         "intent":      None,
         "tickers":     [],
         "year":        None,

@@ -62,6 +62,10 @@ class StreamRequest(BaseModel):
             "If omitted, the server generates a UUID."
         ),
     )
+    messages: Optional[list] = Field(
+        default=None,
+        description="Conversation history from the previous turn, sent back by the client.",
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -126,7 +130,7 @@ class DoneEvent(BaseModel):
     having to parse the markdown report text.
 
     Example:
-        {"type": "done", "job_id": "...", "tickers": ["AAPL"], "intent": "SPECIFIC_STOCK"}
+        {"type": "done", "job_id": "...", "tickers": ["AAPL"], "intent": "SPECIFIC_STOCK", "messages": [...]}
     """
     type: Literal["done"] = "done"
     job_id: str
@@ -137,6 +141,10 @@ class DoneEvent(BaseModel):
     intent: Optional[str] = Field(
         default=None,
         description="Intent category classified by the agent.",
+    )
+    messages: Optional[list] = Field(
+        default=None,
+        description="Conversation history to be sent back by the client on the next request.",
     )
 
 

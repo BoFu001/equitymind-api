@@ -68,6 +68,7 @@ async def query_stream(websocket: WebSocket):
         data = json.loads(raw)
         request = StreamRequest(**data)
         question = request.question
+        messages = request.messages or []
 
         # ── Send connected event ──
         await websocket.send_text(
@@ -82,7 +83,7 @@ async def query_stream(websocket: WebSocket):
         from src.agent.graph import build_graph
         graph = build_graph()
 
-        initial_state = build_initial_state(question)
+        initial_state = build_initial_state(question, messages)
 
         # ── Sentinel: signals the token queue is done ──
         DONE = object()
@@ -151,6 +152,7 @@ async def query_stream(websocket: WebSocket):
                 job_id=job_id,
                 tickers=final_state.get("tickers"),
                 intent=final_state.get("intent"),
+                messages=final_state.get("messages"),
             ).model_dump_json()
         )
 
