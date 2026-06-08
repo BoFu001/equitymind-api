@@ -70,6 +70,14 @@ async def query_stream(websocket: WebSocket):
         question = request.question
         messages = request.messages or []
 
+        logger.info("─" * 50)
+        logger.info("Question : %s", question)
+        logger.info("History  : %s messages", len(messages))
+        for msg in messages:
+            role = msg.get("role", "")
+            preview = msg.get("content", "")[:50]
+            logger.info("  [%s] %s...", role, preview)
+
         # ── Send connected event ──
         await websocket.send_text(
             ConnectedEvent(job_id=job_id).model_dump_json()
@@ -156,6 +164,8 @@ async def query_stream(websocket: WebSocket):
             ).model_dump_json()
         )
 
+        logger.info("Answer   : %s...", (final_state.get("answer") or "")[:100])
+        logger.info("─" * 50)
         logger.info("WebSocket completed (job_id=%s)", job_id)
 
     except WebSocketDisconnect:

@@ -6,6 +6,10 @@ load_dotenv()
 # LLM
 LLM_MODEL = "gpt-4o"
 
+# Conversation history — number of messages to include in LLM context
+# 6 messages = 3 exchanges (1 exchange = 1 user + 1 assistant)
+CONVERSATION_HISTORY_LIMIT = 6
+
 # APP
 APP_NAME = "EquityMind"
 

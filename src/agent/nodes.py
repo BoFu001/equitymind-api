@@ -5,7 +5,7 @@ from datetime import datetime
 
 from openai import OpenAI
 
-from config import OPENAI_API_KEY, APP_NAME, LLM_MODEL
+from config import OPENAI_API_KEY, APP_NAME, LLM_MODEL, CONVERSATION_HISTORY_LIMIT
 from langgraph.config import get_stream_writer
 from core.context import token_queue_var
 from src.agent.state import AgentState
@@ -33,6 +33,12 @@ def classify_intent(state: AgentState) -> dict:
     writer({"type": "progress", "node": "classify", "message": NODE_PROGRESS["classify"]})
 
     question = state["question"]
+    messages = state.get("messages") or []
+    history_context = ""
+    for msg in messages[-CONVERSATION_HISTORY_LIMIT:]:
+        role = msg.get("role", "")
+        content = msg.get("content", "")[:200]
+        history_context += f"{role.upper()}: {content}\n"
 
     prompt = f"""You are {APP_NAME}'s intent classifier.
 Classify the user question into exactly one of these categories:
@@ -45,6 +51,8 @@ Classify the user question into exactly one of these categories:
 - ANALYZE_POSITION: user asks about their own holding in one stock (e.g. "I bought AAPL at $165, should I sell?", "I have 200 Apple shares, what should I do?")
 - ANALYZE_PORTFOLIO: user wants to analyse their full portfolio of multiple stocks (e.g. "Review my portfolio: AAPL 200 shares, NVDA 50 shares")
 
+CONVERSATION HISTORY (for context):
+{history_context}
 User question: {question}
 
 Reply with ONLY the category name. Nothing else."""
@@ -79,6 +87,13 @@ def extract_parameters(state: AgentState) -> dict:
 
 
     question = state["question"]
+    messages = state.get("messages") or []
+
+    history_context = ""
+    for msg in messages[-CONVERSATION_HISTORY_LIMIT:]:
+        role = msg.get("role", "")
+        content = msg.get("content", "")[:200]
+        history_context += f"{role.upper()}: {content}\n"
 
     prompt = f"""You are a financial data extractor.
 Extract the stock ticker(s) and year from the user question.
@@ -86,8 +101,10 @@ Extract the stock ticker(s) and year from the user question.
 Rules:
 - tickers: list of ALL stock ticker symbols. Convert ANY company name to its ticker symbol. If no company or ticker mentioned, return [].
 - year: the year mentioned. If not mentioned, return null.
-- Examples of conversions: Apple → AAPL, Microsoft → MSFT, Tesla → TSLA, NVIDIA → NVDA, Google → GOOGL, Amazon → AMZN, Alibaba → BABA, Meta → META, Samsung → 005930.KS
+- Examples of conversions: Apple → AAPL, Microsoft → MSFT, Tesla → TSLA, NVIDIA → NVDA, Google → GOOGL, Amazon → AMZN, Alibaba → BABA, Meta → META, Samsung → 005930.KS, Tencent → 0700.HK
 
+CONVERSATION HISTORY (for context):
+{history_context}
 User question: {question}
 
 Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example:
@@ -267,7 +284,7 @@ Sector: {md.get('sector')} | Industry: {md.get('industry')}
 
     # ── Format chat history ──
     history_context = ""
-    for msg in messages[-6:]:  # last 3 exchanges
+    for msg in messages[-CONVERSATION_HISTORY_LIMIT:]: 
         role = msg.get("role", "")
         content = msg.get("content", "")
         history_context += f"{role.upper()}: {content}\n"
