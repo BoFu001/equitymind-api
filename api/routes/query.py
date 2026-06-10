@@ -1,13 +1,13 @@
 """
 api/routes/query.py
 
-Two endpoints:
+Endpoints:
 
 1. WS  /api/v1/query/stream — WebSocket, two-layer streaming
    Layer 1: LangGraph node progress events
    Layer 2: GPT-4o token-by-token streaming
 
-2. POST /api/v1/query/sync — standard JSON, for microservice consumers
+2. GET /api/v1/health — health check for Railway uptime monitoring
 """
 
 import asyncio
@@ -17,6 +17,7 @@ import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from api.auth import verify_api_key
 from api.schemas import (
     ConnectedEvent,
     ProgressEvent,
@@ -25,8 +26,6 @@ from api.schemas import (
     DoneEvent,
     ErrorEvent,
     StreamRequest,
-    SyncRequest,
-    SyncResponse,
     HealthResponse,
 )
 
@@ -58,6 +57,19 @@ async def query_stream(websocket: WebSocket):
         {"type": "done",       "job_id": "...", "tickers": ["AAPL"], "intent": "SPECIFIC_STOCK"}
     """
     await websocket.accept()
+
+    # ── API Key Authentication ────────────────────────────────
+    auth_header = websocket.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        await websocket.close(code=4001)
+        return
+    api_key = auth_header.split(" ")[1]
+
+    if not await verify_api_key(api_key):
+        await websocket.close(code=4001)
+        return
+    # ─────────────────────────────────────────────────────────
+
 
     job_id = str(uuid.uuid4())
     logger.info("WebSocket connected (job_id=%s)", job_id)
@@ -186,52 +198,7 @@ async def query_stream(websocket: WebSocket):
 
 
 # ─────────────────────────────────────────────
-# Endpoint 2: Sync REST (for microservices)
-# ─────────────────────────────────────────────
-
-@router.post("/query/sync")
-async def query_sync(request: SyncRequest):
-    """
-    Sync endpoint — runs the full agent and returns complete JSON.
-    No streaming. Intended for microservice consumers.
-
-    Returns SyncResponse with the full markdown report.
-    """
-    job_id = str(uuid.uuid4())
-
-    logger.info("Sync query received (job_id=%s): %s", job_id, request.question[:80])
-
-    try:
-        from src.agent.graph import build_graph
-        graph = build_graph()
-
-        initial_state = build_initial_state(request.question)
-
-        # Run graph to completion — no streaming
-        final_state = await graph.ainvoke(initial_state)
-
-        return SyncResponse(
-            job_id=job_id,
-            tickers=final_state.get("tickers"),
-            intent=final_state.get("intent"),
-            answer=final_state.get("answer", ""),
-            status="success",
-        )
-
-    except Exception as e:
-        logger.exception("Sync query error (job_id=%s)", job_id)
-        return SyncResponse(
-            job_id=job_id,
-            tickers=None,
-            intent=None,
-            answer="",
-            status="error",
-            error=str(e),
-        )
-
-
-# ─────────────────────────────────────────────
-# Endpoint 3: Health check
+# Endpoint 2: Health check
 # ─────────────────────────────────────────────
 
 @router.get("/health")

@@ -22,7 +22,10 @@ async def test():
 
     print(f"Connecting to {uri}...")
 
-    async with websockets.connect(uri) as ws:
+    async with websockets.connect(
+        uri,
+        additional_headers={"Authorization": "Bearer test_key"}
+    ) as ws:
         await ws.send(json.dumps({
             "question": question,
             "session_id": "test-session-001"

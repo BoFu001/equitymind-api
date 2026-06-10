@@ -26,6 +26,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes.query import router as query_router
+from api.routes.research import router as research_router
 from config import APP_NAME
 
 # ─────────────────────────────────────────────
@@ -90,3 +91,4 @@ app.add_middleware(
 # Routes
 # ─────────────────────────────────────────────
 app.include_router(query_router, prefix="/api/v1")
+app.include_router(research_router, prefix="/api/v1")

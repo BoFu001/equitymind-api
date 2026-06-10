@@ -148,7 +148,10 @@ def test_sync_comparison_intent():
 
 def test_websocket_connects():
     """WebSocket must accept connection and send connected event."""
-    with client.websocket_connect("/api/v1/query/stream") as ws:
+    with client.websocket_connect(
+        "/api/v1/query/stream",
+        headers={"Authorization": "Bearer test_key"}
+    ) as ws:
         ws.send_text(json.dumps({"question": "Hello"}))
         message = ws.receive_text()
         data = json.loads(message)
@@ -158,7 +161,10 @@ def test_websocket_connects():
 
 def test_websocket_connected_event_has_job_id():
     """Connected event must contain a non-empty job_id."""
-    with client.websocket_connect("/api/v1/query/stream") as ws:
+    with client.websocket_connect(
+        "/api/v1/query/stream",
+        headers={"Authorization": "Bearer test_key"}
+    ) as ws:
         ws.send_text(json.dumps({"question": "Hello"}))
         message = ws.receive_text()
         data = json.loads(message)
@@ -168,7 +174,10 @@ def test_websocket_connected_event_has_job_id():
 def test_websocket_greeting_receives_answer():
     """Greeting question must receive an answer via WebSocket."""
     events = []
-    with client.websocket_connect("/api/v1/query/stream") as ws:
+    with client.websocket_connect(
+        "/api/v1/query/stream",
+        headers={"Authorization": "Bearer test_key"}
+    ) as ws:
         ws.send_text(json.dumps({"question": "Hello"}))
         while True:
             message = ws.receive_text()
@@ -189,7 +198,10 @@ def test_websocket_greeting_receives_answer():
 def test_websocket_progress_events_received():
     """At least one progress event must be received for any question."""
     events = []
-    with client.websocket_connect("/api/v1/query/stream") as ws:
+    with client.websocket_connect(
+        "/api/v1/query/stream",
+        headers={"Authorization": "Bearer test_key"}
+    ) as ws:
         ws.send_text(json.dumps({"question": "Hello"}))
         while True:
             message = ws.receive_text()
@@ -205,7 +217,10 @@ def test_websocket_progress_events_received():
 def test_websocket_done_event_received():
     """Done event must always be the last event received."""
     events = []
-    with client.websocket_connect("/api/v1/query/stream") as ws:
+    with client.websocket_connect(
+        "/api/v1/query/stream",
+        headers={"Authorization": "Bearer test_key"}
+    ) as ws:
         ws.send_text(json.dumps({"question": "Hello"}))
         while True:
             message = ws.receive_text()
@@ -219,7 +234,10 @@ def test_websocket_done_event_received():
 
 def test_websocket_invalid_json_handled():
     """Invalid JSON must not crash the server."""
-    with client.websocket_connect("/api/v1/query/stream") as ws:
+    with client.websocket_connect(
+        "/api/v1/query/stream",
+        headers={"Authorization": "Bearer test_key"}
+    ) as ws:
         ws.send_text("this is not json")
         message = ws.receive_text()
         data = json.loads(message)
@@ -230,7 +248,10 @@ def test_websocket_invalid_json_handled():
 def test_websocket_specific_stock_streams_tokens():
     """Stock question must stream tokens via WebSocket."""
     events = []
-    with client.websocket_connect("/api/v1/query/stream") as ws:
+    with client.websocket_connect(
+        "/api/v1/query/stream",
+        headers={"Authorization": "Bearer test_key"}
+    ) as ws:
         ws.send_text(json.dumps({"question": "Analyse Apple"}))
         while True:
             message = ws.receive_text()
