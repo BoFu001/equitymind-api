@@ -1,5 +1,6 @@
 import json
 import re
+import random
 import time
 from datetime import datetime
 
@@ -46,7 +47,7 @@ Classify the user question into exactly one of these categories:
 - GREETING: user is saying hello or asking what {APP_NAME} can do (e.g. "Hi", "What can you do?")
 - OUT_OF_SCOPE: question has NO relation to investing, stocks, or financial markets (e.g. "I want to be rich", "What's the weather?", "Am I handsome?")
 - SPECIFIC_STOCK: user asks about one NAMED specific company (e.g. "What are Apple's risks?", "Analyse NVIDIA", "Tell me about Tesla"). The company must be explicitly named — NOT vague like "a tech company" or "a healthcare stock".
-- COMPARISON: user wants to compare two or more EXPLICITLY NAMED companies with real identifiable stock tickers (e.g. "Compare Apple and Microsoft", "AAPL vs GOOGL", "Tesla versus BMW"). IMPORTANT: if no specific company names are mentioned, classify as DISCOVERY instead. "Compare two tech companies" or "Compare them" are DISCOVERY, not COMPARISON.
+- COMPARISON: user wants to compare two or more EXPLICITLY NAMED companies with real identifiable stock tickers (e.g. "Compare Apple and Microsoft", "AAPL vs GOOGL", "Tesla versus BMW"). Also classify as COMPARISON if the user refers to previously suggested companies (e.g. "Compare the last 5 suggested", "Compare those stocks", "Which of those is better?"). IMPORTANT: if no specific company names are mentioned AND no reference to previous suggestions, classify as DISCOVERY instead.
 - DISCOVERY: user wants general investment recommendations, asks about a sector, or asks general financial market questions without naming a specific company (e.g. "Find me a low risk stock", "Analyse a tech company", "Tell me about semiconductor stocks", "Tell me about the stock market", "What is a good investment?")
 - ANALYZE_POSITION: user asks about their own holding in one stock (e.g. "I bought AAPL at $165, should I sell?", "I have 200 Apple shares, what should I do?")
 - ANALYZE_PORTFOLIO: user wants to analyse their full portfolio of multiple stocks (e.g. "Review my portfolio: AAPL 200 shares, NVDA 50 shares")
@@ -80,11 +81,8 @@ def extract_parameters(state: AgentState) -> dict:
     Returns primary ticker, list of all tickers, and year.
     """
 
-
-
     writer = get_stream_writer()
     writer({"type": "progress", "node": "extract", "message": NODE_PROGRESS["extract"]})
-
 
     question = state["question"]
     messages = state.get("messages") or []
@@ -549,16 +547,19 @@ USER QUESTION: {question}
 Return exactly 5 stock tickers that could match the user's criteria.
 IMPORTANT: Only suggest US-listed companies that file 10-K annual reports with the SEC.
 Do NOT suggest foreign companies or ADRs (e.g. Alibaba, ASML, Toyota, TSM).
+Avoid always suggesting the same popular mega-cap companies (AAPL, MSFT, GOOGL, AMZN, NVDA) unless the user specifically asks for them.
+Be creative and consider less obvious but relevant companies that genuinely match the user's criteria.
+Exploration seed: {random.randint(1000, 9999)}
 
 Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example:
-{{"tickers": ["JNJ", "WMT", "BRK-B", "PFE", "JPM"]}}
+{{"tickers": ["JNJ", "WMT", "BRK-B", "PFE", "JPM"]}}"""
 
-# NOTE: Once 20-F pipeline is built, remove the 10-K constraint above."""
+    # TODO: Once 20-F pipeline is built, remove the 10-K constraint above.
 
     ticker_response = client.chat.completions.create(
         model=LLM_MODEL,
         messages=[{"role": "user", "content": ticker_prompt}],
-        temperature=0,
+        temperature=0.3,
     )
 
     try:
