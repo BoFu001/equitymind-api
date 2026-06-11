@@ -414,7 +414,7 @@ Generate the report in this EXACT structure:
         {"role": "assistant", "content": answer},
     ]
 
-    print(f"  [generate_report] Report generated for {ticker} ({len(answer)} chars)")
+    print(f"  [specific_report] Report generated for {ticker} ({len(answer)} chars)")
     return {"answer": answer, "messages": updated_messages}
 
 
@@ -460,6 +460,7 @@ What stock would you like me to research?"""
             queue.put_nowait(word)
             time.sleep(0.03)
 
+    print(f"  [handle_out_of_scope] Response generated ({len(answer)} chars)")
     return {"answer": answer, "messages": updated_messages}
 
 
@@ -477,32 +478,51 @@ def handle_greeting(state: AgentState) -> dict:
     messages = state.get("messages") or []
     question = state["question"]
 
-    answer = f"""👋 Hello! I'm {APP_NAME}, your AI-powered investment research assistant.
 
-I analyse stocks using:
-- 📄 **SEC 10-K filings** — official annual reports
-- 📈 **Market data** — price, P/E, RSI, MACD, moving averages
-- 📰 **News sentiment** — FinBERT AI analysis of recent news
-- 💡 **AI recommendations** — BUY/HOLD/SELL with full evidence
+    history_context = ""
+    for msg in messages[-CONVERSATION_HISTORY_LIMIT:]:
+        role = msg.get("role", "")
+        content = msg.get("content", "")[:200]
+        history_context += f"{role.upper()}: {content}\n"
 
-**Try asking me:**
-- "Analyse Apple"
-- "What are NVIDIA's biggest risks?"
-- "Compare Microsoft and Google"
-- "Find me a low risk stock in healthcare"
+    prompt = f"""You are {APP_NAME}, a professional AI investment research assistant.
 
-What would you like to research today?"""
+CONVERSATION HISTORY:
+{history_context}
+
+USER MESSAGE: {question}
+
+If this is the first message (no history) — introduce yourself warmly and explain what you can do.
+If the user is saying thank you, well done, or giving positive feedback — respond naturally and briefly, then invite them to ask another question.
+If the user is saying goodbye — respond warmly and briefly.
+
+Keep the response concise and contextual. Use markdown and emojis where appropriate."""
+
+
+    queue = token_queue_var.get()
+    answer = ""
+
+    response = client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+        stream=True,
+    )    
+    
+    for stream_chunk in response:
+        token = stream_chunk.choices[0].delta.content or ""
+        if token:
+            answer += token
+            if queue:
+                queue.put_nowait(token)
 
     updated_messages = messages + [
         {"role": "user",      "content": question},
         {"role": "assistant", "content": answer},
     ]
 
-    queue = token_queue_var.get()
-    if queue:
-        for word in re.findall(r'\S+|\s+', answer):
-            queue.put_nowait(word)
-            time.sleep(0.03)
+    
+    print(f"  [handle_greeting] Greeting generated ({len(answer)} chars)")
 
     return {"answer": answer, "messages": updated_messages}
 
@@ -681,7 +701,7 @@ Ask me for a detailed analysis of any of these companies.
         {"role": "assistant", "content": answer},
     ]
 
-    print(f"  [discovery_report] Report generated from {tickers}")
+    print(f"  [discovery_report] Report generated for {tickers} ({len(answer)} chars)")
     return {"answer": answer, "messages": updated_messages}
 
 
@@ -829,7 +849,7 @@ Generate a structured comparison report in markdown format:
         {"role": "assistant", "content": answer},
     ]
 
-    print(f"  [comparison_report] Comparison report generated for {tickers}")
+    print(f"  [comparison_report] Report generated for {tickers} ({len(answer)} chars)")
     return {"answer": answer, "messages": updated_messages}
 
 # ─────────────────────────────────────────────
@@ -882,4 +902,5 @@ Note: Foreign companies like Airbus, Toyota, ASML, Alibaba are not yet supported
             queue.put_nowait(word)
             time.sleep(0.03)
 
+    print(f"  [handle_no_ticker] Response generated ({len(answer)} chars)")
     return {"answer": answer, "messages": updated_messages}
