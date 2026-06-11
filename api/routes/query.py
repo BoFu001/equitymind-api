@@ -7,7 +7,7 @@ Endpoints:
    Layer 1: LangGraph node progress events
    Layer 2: GPT-4o token-by-token streaming
 
-2. GET /api/v1/health — health check for Railway uptime monitoring
+
 """
 
 import asyncio
@@ -26,10 +26,8 @@ from api.schemas import (
     DoneEvent,
     ErrorEvent,
     StreamRequest,
-    HealthResponse,
 )
 
-from config import APP_NAME
 from core.context import token_queue_var
 from src.agent.state import build_initial_state
 
@@ -197,11 +195,3 @@ async def query_stream(websocket: WebSocket):
             pass
 
 
-# ─────────────────────────────────────────────
-# Endpoint 2: Health check
-# ─────────────────────────────────────────────
-
-@router.get("/health")
-async def health():
-    """Health check for Railway uptime monitoring."""
-    return HealthResponse(app=APP_NAME, version="0.4.0")
