@@ -4,7 +4,6 @@ src/vectorstore/pgvector_store.py
 PostgreSQL + pgvector vector store for EquityMind.
 
 Functions:
-    check_ticker_exists(ticker)        — check if complete SEC data exists
     upsert_chunks(chunks)              — batch insert with transaction
     query(embedding, ticker, top_k)    — vector similarity search
 """
@@ -17,28 +16,6 @@ from config import DATABASE_URL, PGVECTOR_BATCH_SIZE
 def get_connection():
     """Get a fresh PostgreSQL connection."""
     return psycopg2.connect(DATABASE_URL)
-
-
-def check_ticker_exists(ticker: str) -> bool:
-    """
-    Check if SEC data exists for this ticker.
-    Uses transaction guarantee — either all chunks exist or none.
-    No partial data possible due to upsert_chunks transaction.
-    """
-    try:
-        conn   = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT 1 FROM sec_chunks WHERE ticker = %s LIMIT 1",
-            (ticker,)
-        )
-        exists = cursor.fetchone() is not None
-        cursor.close()
-        conn.close()
-        return exists
-    except Exception as e:
-        print(f"  [pgvector] Error checking ticker {ticker}: {e}")
-        return False
 
 
 def upsert_chunks(chunks: list[dict]) -> None:

@@ -14,7 +14,6 @@ from src.agent.nodes_notifications import NODE_PROGRESS
 from src.tools.market_data import get_stock_data
 from src.tools.news_sentiment import get_news_and_sentiment
 from src.tools.sec_retrieval import retrieve, fetch_embed_store_retrieve
-from src.vectorstore.pgvector_store import check_ticker_exists
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -159,9 +158,10 @@ def ensure_sec_data(state: AgentState) -> dict:
     all_chunks = {}
     for t in tickers:
         try:
-            if check_ticker_exists(t):
+            chunks = retrieve(question, t)
+            if chunks:
                 writer({"type": "sub_progress", "node": "ensure_sec", "message": NODE_PROGRESS["retrieve"].format(ticker=t)})
-                all_chunks[t] = retrieve(question, t)
+                all_chunks[t] = chunks
             else:
                 writer({"type": "sub_progress", "node": "ensure_sec", "message": NODE_PROGRESS["fetch"].format(ticker=t)})
                 all_chunks[t] = fetch_embed_store_retrieve(question, t)
