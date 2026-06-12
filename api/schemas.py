@@ -66,6 +66,10 @@ class StreamRequest(BaseModel):
         default=None,
         description="Conversation history from the previous turn, sent back by the client.",
     )
+    session_memory: Optional[dict] = Field(
+        default=None,
+        description="Structured session memory from the previous turn, sent back by the client.",
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -145,6 +149,10 @@ class DoneEvent(BaseModel):
     messages: Optional[list] = Field(
         default=None,
         description="Conversation history to be sent back by the client on the next request.",
+    )
+    session_memory: Optional[dict] = Field(
+        default=None,
+        description="Updated session memory to be sent back by the client on the next request.",
     )
 
 

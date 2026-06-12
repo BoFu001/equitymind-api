@@ -10,9 +10,10 @@ class AgentState(TypedDict):
     # Input
     question: str
     messages: list              # full conversation history
+    session_memory: Optional[dict]  # structured + narrative summary memory
 
     # Intent classification
-    intent: Optional[str]       # SPECIFIC_STOCK / COMPARISON / DISCOVERY / ANALYZE_POSITION / ANALYZE_PORTFOLIO / GREETING / OUT_OF_SCOPE
+    intent: Optional[str]       # GREETING / OUT_OF_SCOPE / SPECIFIC_STOCK / COMPARISON / DISCOVERY / ANALYZE_POSITION / ANALYZE_PORTFOLIO / 
 
     # Extracted parameters
     tickers: Optional[list[str]]     # all tickers e.g. ["AAPL"] or ["AAPL", "MSFT"]
@@ -31,7 +32,7 @@ class AgentState(TypedDict):
     answer: Optional[str]       # final report
 
 
-def build_initial_state(question: str, messages: list | None = None) -> dict:
+def build_initial_state(question: str, messages: list | None = None, session_memory: dict | None = None) -> dict:
     """
     Builds the initial AgentState dict for a new request.
 
@@ -49,6 +50,20 @@ def build_initial_state(question: str, messages: list | None = None) -> dict:
     return {
         "question":    question,
         "messages":    messages or [],
+        "session_memory": session_memory or {
+            "structured": {
+                "tickers_discussed":    [],
+                "last_tickers":         [],
+                "last_intent":          "",
+                "top_recommendations":  [],
+                "user_preferences": {
+                    "sectors": [],
+                    "risk":    "",
+                    "style":   "",
+                }
+            },
+            "narrative": ""
+        },
         "intent":      None,
         "tickers":     [],
         "year":        None,

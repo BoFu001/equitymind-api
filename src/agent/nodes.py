@@ -86,6 +86,8 @@ def extract_parameters(state: AgentState) -> dict:
 
     question = state["question"]
     messages = state.get("messages") or []
+    session_memory = state.get("session_memory") or {}
+    last_tickers = (session_memory.get("structured") or {}).get("last_tickers", [])
 
     history_context = ""
     for msg in messages[-CONVERSATION_HISTORY_LIMIT:]:
@@ -104,6 +106,9 @@ Rules:
 CONVERSATION HISTORY (for context):
 {history_context}
 User question: {question}
+
+LAST TICKERS FROM PREVIOUS TURN (use these if user refers to "last", "those", "them", "the suggested ones"):
+{last_tickers if last_tickers else "None"}
 
 Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example:
 {{"tickers": ["AAPL"], "year": null}}
@@ -905,3 +910,93 @@ Note: Foreign companies like Airbus, Toyota, ASML, Alibaba are not yet supported
 
     print(f"  [handle_no_ticker] Response generated ({len(answer)} chars)")
     return {"answer": answer, "messages": updated_messages}
+
+
+
+
+
+
+# ─────────────────────────────────────────────
+# Node: Update Session Memory
+# ─────────────────────────────────────────────
+def update_session_memory(state: AgentState) -> dict:
+    """
+    Runs after every terminal node.
+    Updates structured facts and regenerates narrative summary.
+    """
+
+    # ── Get current state ──
+    question       = state["question"]
+    answer         = state.get("answer") or ""
+    intent         = state.get("intent") or ""
+    tickers        = state.get("tickers") or []
+    messages       = state.get("messages") or []
+    session_memory = state.get("session_memory") or {}
+
+    # ── Get previoursly saved memory ──
+    structured = session_memory.get("structured", {
+        "tickers_discussed":   [],       # active
+        "last_tickers":        [],       # active
+        "last_intent":         "",       # active
+        "top_recommendations": [],       # future
+        "user_preferences": {            # future
+            "sectors": [],
+            "risk":    "",
+            "style":   "",
+        }
+    })
+
+    # ── Update structured facts ──
+    existing_tickers = structured.get("tickers_discussed", [])
+    for t in tickers:
+        if t not in existing_tickers:
+            existing_tickers.append(t)
+
+    structured["tickers_discussed"] = existing_tickers        # active
+    structured["last_tickers"]      = tickers                 # active
+    structured["last_intent"]       = intent                  # active
+    # structured["top_recommendations"]                         future
+    # structured["user_preferences"]                            future (separate LLM call)
+
+    # ── Build conversation context for narrative ──
+    conversation_context = ""
+    for msg in messages[-CONVERSATION_HISTORY_LIMIT:]:
+        role    = msg.get("role", "")
+        content = msg.get("content", "")[:300]
+        conversation_context += f"{role.upper()}: {content}\n"
+
+    existing_narrative = session_memory.get("narrative", "")
+
+    # ── Generate updated narrative ──
+    narrative_prompt = f"""You are a memory summariser for {APP_NAME}, an AI investment research assistant.
+
+EXISTING SUMMARY:
+{existing_narrative if existing_narrative else "No previous summary."}
+
+LATEST TURN:
+User asked: {question}
+Intent: {intent}
+Tickers involved: {tickers}
+Answer summary: {answer[:300]}
+
+Update the summary to include the latest turn. Keep it concise — maximum 5 sentences.
+Focus on: what stocks were discussed, user preferences revealed, recommendations made, and any user feedback.
+Write in third person. Do not include disclaimers or formatting."""
+
+    narrative_response = client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[{"role": "user", "content": narrative_prompt}],
+        temperature=0,
+    )
+
+    narrative = narrative_response.choices[0].message.content.strip()
+
+    updated_session_memory = {
+        "structured": structured,
+        "narrative":  narrative,
+    }
+
+    print(f"  [update_session_memory] Session memory updated — tickers: {structured['tickers_discussed']}")
+    print(f"  [update_session_memory] Narrative: {narrative[:100]}...")
+
+    return {"session_memory": updated_session_memory}

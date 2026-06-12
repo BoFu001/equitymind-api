@@ -1,39 +1,37 @@
 """
 test_websocket.py
 
-Quick test for the WebSocket streaming endpoint.
-Tests both Layer 1 (progress events) and Layer 2 (token streaming).
+Multi-turn WebSocket test for EquityMind.
+Tests conversation history and session memory across multiple turns.
 
 Run with server already started:
     uvicorn api.main:app --reload --port 8000
 
 Then in a second terminal:
-    python test_websocket.py
+    python tests/test_websocket.py
 """
 
 import asyncio
 import json
 import websockets
 
+URI = "ws://localhost:8000/api/v1/query/stream"
+HEADERS = {"Authorization": "Bearer test_key"}
 
-async def test():
-    uri = "ws://localhost:8000/api/v1/query/stream"
-    question = input("Enter your question: ")
 
-    print(f"Connecting to {uri}...")
+async def send_question(question: str, messages: list, session_memory: dict) -> tuple:
+    """Send one question and return updated messages and session_memory."""
 
-    async with websockets.connect(
-        uri,
-        additional_headers={"Authorization": "Bearer test_key"}
-    ) as ws:
+    async with websockets.connect(URI, additional_headers=HEADERS) as ws:
         await ws.send(json.dumps({
-            "question": question,
-            "session_id": "test-session-001"
+            "question":       question,
+            "messages":       messages,
+            "session_memory": session_memory,
         }))
-        print(f"Question sent: {question}")
+
+        print(f"\nQuestion: {question}")
         print("-" * 60)
 
-        token_count = 0
         answer = ""
 
         async for message in ws:
@@ -41,33 +39,50 @@ async def test():
             event_type = data.get("type")
 
             if event_type == "connected":
-                print(f"[connected]  job_id={data.get('job_id')}")
+                print(f"[connected] job_id={data.get('job_id')}")
 
             elif event_type == "progress":
-                print(f"[progress]   node={data.get('node')} | {data.get('message')}")
+                print(f"[progress] {data.get('message')}")
 
             elif event_type == "sub_progress":
                 print(f"  ↳ {data.get('message')}")
-                
+
             elif event_type == "token":
-                token_count += 1
                 answer += data.get("text", "")
-                # Print a dot for each token to show streaming is working
                 print(data.get("text", ""), end="", flush=True)
 
             elif event_type == "done":
-                tickers = data.get('tickers') or []
-                print(f"[done]    job_id={data.get('job_id')} | tickers={tickers} | intent={data.get('intent')}")
-                break
+                print(f"\n[done] tickers={data.get('tickers')} | intent={data.get('intent')}")
+                updated_messages       = data.get("messages") or messages
+                updated_session_memory = data.get("session_memory") or session_memory
+                narrative = (updated_session_memory.get("narrative") or "")
+                last_tickers = (updated_session_memory.get("structured") or {}).get("last_tickers", [])
+                print(f"[memory] last_tickers={last_tickers}")
+                print(f"[memory] narrative={narrative}...")
+                return updated_messages, updated_session_memory
 
             elif event_type == "error":
-                print(f"\n[error]      {data.get('message')}")
-                break
+                print(f"\n[error] {data.get('message')}")
+                return messages, session_memory
 
-        print("-" * 60)
-        print(f"Tokens received: {token_count}")
-        print(f"Answer length:   {len(answer)} chars")
-        print(f"Full answer:\n{answer}")
+    return messages, session_memory
 
 
-asyncio.run(test())
+async def main():
+    messages       = []
+    session_memory = {}
+
+    print("EquityMind multi-turn test. Type 'quit' to exit.")
+    print("=" * 60)
+
+    while True:
+        question = input("\nYou: ").strip()
+        if question.lower() in ("quit", "exit", "q"):
+            break
+        if not question:
+            continue
+
+        messages, session_memory = await send_question(question, messages, session_memory)
+
+
+asyncio.run(main())

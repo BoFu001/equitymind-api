@@ -14,6 +14,7 @@ from src.agent.nodes import (
     handle_no_ticker,
     discovery_suggest,
     discovery_report,
+    update_session_memory,
 )
 
 
@@ -59,18 +60,19 @@ def build_graph():
     graph = StateGraph(AgentState)
 
     # Add all nodes
-    graph.add_node("classify",          classify_intent)
-    graph.add_node("extract",           extract_parameters)
-    graph.add_node("ensure_sec",      ensure_sec_data)
-    graph.add_node("market_data",       get_market_data)
-    graph.add_node("news",              get_news)
-    graph.add_node("specific_report",   specific_report)
-    graph.add_node("out_of_scope",      handle_out_of_scope)
-    graph.add_node("greeting",          handle_greeting)
-    graph.add_node("discovery_suggest", discovery_suggest)
-    graph.add_node("discovery_report",  discovery_report)
-    graph.add_node("comparison_report", comparison_report)
-    graph.add_node("no_ticker",         handle_no_ticker) 
+    graph.add_node("classify",               classify_intent)
+    graph.add_node("extract",                extract_parameters)
+    graph.add_node("ensure_sec",             ensure_sec_data)
+    graph.add_node("market_data",            get_market_data)
+    graph.add_node("news",                   get_news)
+    graph.add_node("specific_report",        specific_report)
+    graph.add_node("out_of_scope",           handle_out_of_scope)
+    graph.add_node("greeting",               handle_greeting)
+    graph.add_node("discovery_suggest",      discovery_suggest)
+    graph.add_node("discovery_report",       discovery_report)
+    graph.add_node("comparison_report",      comparison_report)
+    graph.add_node("no_ticker",              handle_no_ticker) 
+    graph.add_node("update_session_memory",  update_session_memory)
 
     # Entry point
     graph.set_entry_point("classify")
@@ -108,17 +110,18 @@ def build_graph():
     )
 
     # Linear flow after market_data
-    graph.add_edge("discovery_suggest",   "ensure_sec")
-    graph.add_edge("ensure_sec",        "market_data")
-    graph.add_edge("market_data",         "news")
+    graph.add_edge("discovery_suggest",      "ensure_sec")
+    graph.add_edge("ensure_sec",             "market_data")
+    graph.add_edge("market_data",            "news")
 
     # End nodes
-    graph.add_edge("specific_report",     END)
-    graph.add_edge("discovery_report",    END)
-    graph.add_edge("comparison_report",   END)
-    graph.add_edge("out_of_scope",        END)
-    graph.add_edge("greeting",            END)
-    graph.add_edge("no_ticker",           END) 
+    graph.add_edge("specific_report",        "update_session_memory")
+    graph.add_edge("discovery_report",       "update_session_memory")
+    graph.add_edge("comparison_report",      "update_session_memory")
+    graph.add_edge("out_of_scope",           "update_session_memory")
+    graph.add_edge("greeting",               "update_session_memory")
+    graph.add_edge("no_ticker",              "update_session_memory") 
+    graph.add_edge("update_session_memory",  END)
 
     return graph.compile()
 
