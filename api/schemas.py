@@ -94,7 +94,7 @@ class ProgressEvent(BaseModel):
     Allows the UI to show what the agent is doing in real time.
 
     node values match the node names registered in graph.py:
-        classify | extract | check_pinecone | retrieve | fetch |
+        classify | extract | ensure_sec | retrieve | fetch |
         market_data | news | report | comparison | discovery |
         greeting | out_of_scope
 

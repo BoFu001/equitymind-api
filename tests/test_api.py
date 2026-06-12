@@ -12,7 +12,7 @@ Tests cover:
 Run with server stopped (uses TestClient — no server needed):
     pytest tests/test_api.py -v
 
-Note: Some tests make real API calls to OpenAI, Pinecone, and yfinance.
+Note: Some tests make real API calls to OpenAI, PostgreSQL, and yfinance.
 These take 30-90 seconds each.
 """
 

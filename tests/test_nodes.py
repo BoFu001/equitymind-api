@@ -34,6 +34,7 @@ def make_state(**kwargs) -> AgentState:
     defaults = {
         "question": "What are Apple's biggest risks?",
         "messages": [],
+        "session_memory": None,
         "intent": None,
         "tickers": [], 
         "year": None,
@@ -185,7 +186,6 @@ def test_retrieve_sec_data_existing_ticker():
     assert len(result["chunks"]["AAPL"]) > 0
     assert "text" in result["chunks"]["AAPL"][0]
     assert "score" in result["chunks"]["AAPL"][0]
-    assert "source" in result["chunks"]["AAPL"][0]
 
 def test_retrieve_sec_data_unknown_ticker():
     state = make_state(

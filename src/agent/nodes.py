@@ -14,7 +14,7 @@ from src.agent.nodes_notifications import NODE_PROGRESS
 from src.tools.market_data import get_stock_data
 from src.tools.news_sentiment import get_news_and_sentiment
 from src.tools.sec_retrieval import retrieve, fetch_embed_store_retrieve
-from src.vectorstore.pinecone_store import check_ticker_exists
+from src.vectorstore.pgvector_store import check_ticker_exists
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -148,7 +148,6 @@ Reply with ONLY valid JSON. No markdown, no code fences, no explanation. Example
 def ensure_sec_data(state: AgentState) -> dict:
     """
     Single responsibility: get SEC chunks for all tickers.
-    Replaces: check_pinecone + retrieve_chunks + fetch_and_retrieve
     Works for 1 ticker (SPECIFIC_STOCK) or N tickers (COMPARISON, DISCOVERY).
     """
     writer = get_stream_writer()
@@ -229,7 +228,7 @@ def get_news(state: AgentState) -> dict:
 
 
 # ─────────────────────────────────────────────
-# Node: Generate Report
+# Node: Specific Report
 # ─────────────────────────────────────────────
 def specific_report(state: AgentState) -> dict:
     """
@@ -256,7 +255,8 @@ def specific_report(state: AgentState) -> dict:
     else:
         sec_context = ""
         for i, chunk in enumerate(chunks):
-            sec_context += f"\n[SEC Source {i+1}: {chunk.get('source','')} | Score: {chunk.get('score',0):.2f}]\n"
+            source = f"{ticker}_{chunk.get('filing_type')}_{chunk.get('section')}_{chunk.get('filing_date')}"
+            sec_context += f"\n[SEC Source {i+1}: {source} | Score: {chunk.get('score',0):.2f}]\n"
             sec_context += chunk.get("text", "") + "\n"
 
     # ── Format market data for prompt ──

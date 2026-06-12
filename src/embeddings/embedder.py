@@ -32,12 +32,3 @@ def embed_chunks(chunks: list[dict]) -> list[dict]:
 
     print(f"Embedding complete. Total: {len(chunks)} chunks")
     return chunks
-
-
-if __name__ == "__main__":
-    # Quick test with AAPL
-    from src.ingestion.sec_loader import ingest_sec_filing
-    chunks = ingest_sec_filing("AAPL")
-    embedded = embed_chunks(chunks)
-    print(f"\nFirst chunk embedding length: {len(embedded[0]['embedding'])}")
-    print(f"Expected: 1536")
