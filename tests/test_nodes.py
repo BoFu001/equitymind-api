@@ -184,8 +184,9 @@ def test_retrieve_sec_data_existing_ticker():
     assert "chunks" in result
     assert "AAPL" in result["chunks"]
     assert len(result["chunks"]["AAPL"]) > 0
-    assert "text" in result["chunks"]["AAPL"][0]
+    assert "chunk" in result["chunks"]["AAPL"][0]
     assert "score" in result["chunks"]["AAPL"][0]
+    assert "text" in result["chunks"]["AAPL"][0]["chunk"]
 
 def test_retrieve_sec_data_unknown_ticker():
     state = make_state(

@@ -255,9 +255,9 @@ def specific_report(state: AgentState) -> dict:
     else:
         sec_context = ""
         for i, chunk in enumerate(chunks):
-            source = f"{ticker}_{chunk.get('filing_type')}_{chunk.get('section')}_{chunk.get('filing_date')}"
-            sec_context += f"\n[SEC Source {i+1}: {source} | Score: {chunk.get('score',0):.2f}]\n"
-            sec_context += chunk.get("text", "") + "\n"
+            source = f"{ticker}_{chunk['chunk']['filing_type']}_{chunk['chunk']['section']}_{chunk['chunk']['filing_date']}"
+            sec_context += f"\n[SEC Source {i+1}: {source} | Score: {chunk['score']:.2f}]\n"
+            sec_context += chunk["chunk"]["text"] + "\n"
 
     # ── Format market data for prompt ──
     md = market_data
@@ -605,7 +605,7 @@ def discovery_report(state: AgentState) -> dict:
             sec_context += "  No SEC 10-K data available.\n"
         else:
             for chunk in chunks:
-                sec_context += chunk.get("text", "")[:300] + "\n"
+                sec_context += chunk["chunk"]["text"][:300] + "\n"
 
 
     # ── Format market data ──
@@ -750,7 +750,7 @@ def comparison_report(state: AgentState) -> dict:
             sec_context += "  No SEC 10-K data available.\n"
         else:
             for chunk in chunks:
-                sec_context += chunk.get("text", "")[:300] + "\n"
+                sec_context += chunk["chunk"]["text"][:300] + "\n"
 
     # ── Format news ──
     news_context = ""

@@ -2,6 +2,7 @@ from edgar import Company, set_identity
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import re
 from config import CHUNK_SIZE, CHUNK_OVERLAP
+from src.vectorstore.types import SecChunk
 
 set_identity("Bo Fu bofu001@gmail.com")
 
@@ -32,7 +33,7 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\n\n.{1,50}\|\s*\d{4}\s*Form 10-K\s*\|\s*\d+\n\n', '\n\n', text)
     return text
 
-def chunk_text(text: str, ticker: str, filing_type: str, filing_date: str, section_key: str, section_label: str) -> list[dict]:
+def chunk_text(text: str, ticker: str, filing_type: str, filing_date: str, section_key: str, section_label: str) -> list[SecChunk]:
     docs = splitter.create_documents([text])
     return [
         {
@@ -48,7 +49,7 @@ def chunk_text(text: str, ticker: str, filing_type: str, filing_date: str, secti
     ]
 
 
-def ingest_sec_filing(ticker: str, filing_type: str = "10-K") -> list[dict]:
+def ingest_sec_filing(ticker: str, filing_type: str = "10-K") -> list[SecChunk]:
     print(f"\n{'='*50}")
     print(f"Processing {ticker}...")
 

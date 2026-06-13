@@ -1,9 +1,10 @@
 from src.ingestion.sec_loader import ingest_sec_filing
 from src.embeddings.embedder import embed_chunks
 from src.vectorstore.pgvector_store import upsert_chunks, query
+from src.vectorstore.types import RetrievedChunk
 
 
-def retrieve(question: str, ticker: str, top_k: int = 5) -> list:
+def retrieve(question: str, ticker: str, top_k: int = 5) -> list[RetrievedChunk]:
     """
     Retrieve relevant chunks from pgvector for a given question and ticker.
     Used when data already exists in PostgreSQL.
@@ -16,7 +17,7 @@ def retrieve(question: str, ticker: str, top_k: int = 5) -> list:
     return query(question_vector, ticker=ticker, top_k=top_k)
 
 
-def fetch_embed_store_retrieve(question: str, ticker: str, top_k: int = 5) -> list:
+def fetch_embed_store_retrieve(question: str, ticker: str, top_k: int = 5) -> list[RetrievedChunk]:
     """
     Dynamically fetches SEC filing for a ticker not in PostgreSQL.
     Downloads, embeds, stores, then retrieves relevant chunks.

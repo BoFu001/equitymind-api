@@ -11,6 +11,7 @@ Functions:
 import psycopg2
 from psycopg2.extras import execute_values
 from config import DATABASE_URL, PGVECTOR_BATCH_SIZE
+from src.vectorstore.types import EmbeddedSecChunk, RetrievedChunk, SecChunk
 
 
 def get_connection():
@@ -18,7 +19,7 @@ def get_connection():
     return psycopg2.connect(DATABASE_URL)
 
 
-def upsert_chunks(chunks: list[dict]) -> None:
+def upsert_chunks(chunks: list[EmbeddedSecChunk]) -> None:
     """
     Batch insert chunks into sec_chunks table.
     Uses a single transaction — all chunks inserted or none (rollback on error).
@@ -72,7 +73,7 @@ def upsert_chunks(chunks: list[dict]) -> None:
         conn.close()
 
 
-def query(question_embedding: list[float], ticker: str = None, top_k: int = 5) -> list:
+def query(question_embedding: list[float], ticker: str = None, top_k: int = 5) -> list[RetrievedChunk]:
     """
     Find top_k most similar chunks for a given question embedding and ticker.
     Uses cosine similarity (<=> operator from pgvector).
@@ -98,12 +99,16 @@ def query(question_embedding: list[float], ticker: str = None, top_k: int = 5) -
 
     # Return flat dicts — no metadata nesting
     return [
-        {
-            "text":         row[0],
-            "section":      row[1],
-            "filing_type":  row[2],
-            "filing_date":  row[3],
-            "score":        row[4],
-        }
+        RetrievedChunk(
+            chunk=SecChunk(
+                ticker=ticker,
+                filing_type=row[2],
+                filing_date=row[3],
+                section=row[1],
+                section_label="",
+                text=row[0],
+            ),
+            score=row[4],
+        )
         for row in rows
     ]
