@@ -36,14 +36,14 @@ def clean_text(text: str) -> str:
 def chunk_text(text: str, ticker: str, filing_type: str, filing_date: str, section_key: str, section_label: str) -> list[SecChunk]:
     docs = splitter.create_documents([text])
     return [
-        {
-            "ticker":        ticker,
-            "filing_type":   filing_type,
-            "filing_date":   filing_date,
-            "section":       section_key,
-            "section_label": section_label,
-            "text":          doc.page_content,
-        }
+        SecChunk(
+            ticker=ticker,
+            filing_type=filing_type,
+            filing_date=filing_date,
+            section=section_key,
+            section_label=section_label,
+            text=doc.page_content,
+        )
         for doc in docs
         if len(doc.page_content) >= 100
     ]
